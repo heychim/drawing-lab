@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "/drawing-schema.json",
+  "title": "Drawing Lab AgentDrawingPayload 0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "documentAction", "operations"],
+  "properties": {
+    "schemaVersion": { "const": "0.1" },
+    "documentAction": { "enum": ["new_drawing", "continue_current"] },
+    "documentId": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "operations": {
+      "type": "array",
+      "maxItems": 1500,
+      "items": { "$ref": "#/$defs/operation" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "documentAction": { "const": "new_drawing" } }, "required": ["documentAction"] },
+      "then": { "not": { "required": ["documentId"] } }
+    },
+    {
+      "if": { "properties": { "documentAction": { "const": "continue_current" } }, "required": ["documentAction"] },
+      "then": { "required": ["documentId"], "not": { "required": ["title"] } }
+    }
+  ],
+  "$defs": {
+    "tool": { "enum": ["pencil", "brush", "eraser"] },
+    "color": { "type": "string", "pattern": "^#[0-9A-F]{6}$" },
+    "brushSize": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "semanticId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$" },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1000 },
+        "y": { "type": "number", "minimum": 0, "maximum": 750 }
+      }
+    },
+    "pathProperties": {
+      "type": "object",
+      "properties": {
+        "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+        "tValues": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "semanticId": { "$ref": "#/$defs/semanticId" },
+        "brushSize": { "$ref": "#/$defs/brushSize" }
+      }
+    },
+    "operation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "tool"],
+          "properties": { "type": { "const": "select_tool" }, "tool": { "$ref": "#/$defs/tool" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "color"],
+          "properties": { "type": { "const": "set_color" }, "color": { "$ref": "#/$defs/color" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "brushSize"],
+          "properties": { "type": { "const": "set_brush_size" }, "brushSize": { "$ref": "#/$defs/brushSize" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "points", "tValues", "semanticId", "tool", "color", "brushSize"],
+          "properties": {
+            "type": { "const": "stroke" },
+            "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+            "tValues": { "type": "array", "minItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+            "semanticId": { "$ref": "#/$defs/semanticId" },
+            "tool": { "enum": ["pencil", "brush"] },
+            "color": { "$ref": "#/$defs/color" },
+            "brushSize": { "$ref": "#/$defs/brushSize" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "points", "tValues", "semanticId", "tool", "brushSize"],
+          "properties": {
+            "type": { "const": "erase" },
+            "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+            "tValues": { "type": "array", "minItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+            "semanticId": { "$ref": "#/$defs/semanticId" },
+            "tool": { "const": "eraser" },
+            "brushSize": { "$ref": "#/$defs/brushSize" }
+          }
+        },
+        { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "undo" } } },
+        { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "redo" } } },
+        { "type": "object", "additionalProperties": false, "required": ["type"], "properties": { "type": { "const": "complete" } } }
+      ]
+    }
+  },
+  "x-drawing-lab-rules": {
+    "pointsAndTValuesEqualLength": true,
+    "tValuesStrictlyIncreasing": true,
+    "tValuesStart": 0,
+    "tValuesEnd": 1,
+    "completeMustBeFinal": true,
+    "coreCanonicalBytes": 2097152,
+    "hostedHandoffCanonicalBytes": 1048576,
+    "fragmentThreshold": "configurable; temporary / pending real mobile-chat handoff validation",
+    "validation": "fail-closed"
+  }
+}

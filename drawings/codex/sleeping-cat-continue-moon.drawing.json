@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "0.1",
+  "documentAction": "continue_current",
+  "documentId": "codex-sleeping-cat",
+  "operations": [
+    { "type": "select_tool", "tool": "brush" },
+    { "type": "set_color", "color": "#F2BD4F" },
+    { "type": "set_brush_size", "brushSize": 14 },
+    {
+      "type": "stroke", "semanticId": "moon_crescent", "tool": "brush", "color": "#F2BD4F", "brushSize": 14,
+      "points": [{"x":760,"y":150},{"x":815,"y":130},{"x":865,"y":155},{"x":835,"y":175},{"x":820,"y":215},{"x":835,"y":255},{"x":790,"y":245},{"x":760,"y":215},{"x":748,"y":180},{"x":760,"y":150}],
+      "tValues": [0,0.11,0.22,0.33,0.44,0.56,0.67,0.78,0.89,1]
+    },
+    { "type": "set_color", "color": "#83BBD2" },
+    { "type": "set_brush_size", "brushSize": 8 },
+    {
+      "type": "stroke", "semanticId": "moon_star_left", "tool": "brush", "color": "#83BBD2", "brushSize": 8,
+      "points": [{"x":705,"y":165},{"x":725,"y":165},{"x":715,"y":155},{"x":715,"y":178}],
+      "tValues": [0,0.33,0.66,1]
+    },
+    {
+      "type": "stroke", "semanticId": "moon_star_right", "tool": "brush", "color": "#83BBD2", "brushSize": 8,
+      "points": [{"x":880,"y":275},{"x":905,"y":275},{"x":892,"y":262},{"x":892,"y":288}],
+      "tValues": [0,0.33,0.66,1]
+    }
+  ]
+}

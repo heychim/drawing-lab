@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "0.1",
+  "documentAction": "new_drawing",
+  "title": "Sunny little house",
+  "operations": [
+    { "type": "select_tool", "tool": "pencil" },
+    { "type": "set_color", "color": "#6B4F4F" },
+    { "type": "set_brush_size", "brushSize": 8 },
+    {
+      "type": "stroke", "semanticId": "house_outline", "tool": "pencil", "color": "#6B4F4F", "brushSize": 8,
+      "points": [{ "x": 260, "y": 390 }, { "x": 260, "y": 610 }, { "x": 610, "y": 610 }, { "x": 610, "y": 390 }],
+      "tValues": [0, 0.34, 0.67, 1]
+    },
+    {
+      "type": "stroke", "semanticId": "roof", "tool": "pencil", "color": "#6B4F4F", "brushSize": 8,
+      "points": [{ "x": 220, "y": 400 }, { "x": 435, "y": 215 }, { "x": 650, "y": 400 }],
+      "tValues": [0, 0.5, 1]
+    },
+    {
+      "type": "stroke", "semanticId": "door", "tool": "pencil", "color": "#6B4F4F", "brushSize": 8,
+      "points": [{ "x": 390, "y": 610 }, { "x": 390, "y": 480 }, { "x": 485, "y": 480 }, { "x": 485, "y": 610 }],
+      "tValues": [0, 0.34, 0.67, 1]
+    },
+    {
+      "type": "stroke", "semanticId": "window", "tool": "pencil", "color": "#6B4F4F", "brushSize": 8,
+      "points": [{ "x": 300, "y": 440 }, { "x": 355, "y": 440 }, { "x": 355, "y": 495 }, { "x": 300, "y": 495 }, { "x": 300, "y": 440 }],
+      "tValues": [0, 0.25, 0.5, 0.75, 1]
+    },
+    { "type": "select_tool", "tool": "brush" },
+    { "type": "set_color", "color": "#F3B84B" },
+    { "type": "set_brush_size", "brushSize": 16 },
+    {
+      "type": "stroke", "semanticId": "sun", "tool": "brush", "color": "#F3B84B", "brushSize": 16,
+      "points": [{ "x": 770, "y": 205 }, { "x": 800, "y": 180 }, { "x": 840, "y": 185 }, { "x": 865, "y": 215 }, { "x": 860, "y": 255 }, { "x": 825, "y": 278 }, { "x": 785, "y": 265 }, { "x": 765, "y": 235 }, { "x": 770, "y": 205 }],
+      "tValues": [0, 0.12, 0.25, 0.37, 0.5, 0.62, 0.75, 0.87, 1]
+    },
+    { "type": "select_tool", "tool": "pencil" },
+    { "type": "set_color", "color": "#6FAE78" },
+    { "type": "set_brush_size", "brushSize": 10 },
+    {
+      "type": "stroke", "semanticId": "grass", "tool": "pencil", "color": "#6FAE78", "brushSize": 10,
+      "points": [{ "x": 145, "y": 625 }, { "x": 275, "y": 615 }, { "x": 420, "y": 630 }, { "x": 570, "y": 616 }, { "x": 720, "y": 628 }],
+      "tValues": [0, 0.25, 0.5, 0.75, 1]
+    },
+    { "type": "undo" },
+    { "type": "redo" },
+    { "type": "complete" }
+  ]
+}

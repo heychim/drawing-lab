@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "drawing-lab-relay",
+  "main": "src/domain/relayWorker.ts",
+  "compatibility_date": "2026-08-26",
+  "workers_dev": true,
+  "browser": {
+    "binding": "BROWSER"
+  },
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/mcp",
+      "/.well-known/*",
+      "/authorize",
+      "/token",
+      "/register"
+    ]
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173,https://YOUR_HOSTED_ORIGIN"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "drawing-lab-relay",
+      "database_id": "YOUR_D1_DATABASE_ID"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "YOUR_RATE_LIMIT_NAMESPACE_ID",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
+  "observability": { "enabled": false }
+}

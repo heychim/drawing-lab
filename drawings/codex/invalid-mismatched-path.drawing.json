@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "0.1",
+  "documentAction": "continue_current",
+  "documentId": "codex-sleeping-cat",
+  "operations": [
+    { "type": "select_tool", "tool": "pencil" },
+    { "type": "set_color", "color": "#6B4F4F" },
+    { "type": "set_brush_size", "brushSize": 8 },
+    {
+      "type": "stroke", "semanticId": "invalid_codex_stroke", "tool": "pencil", "color": "#6B4F4F", "brushSize": 8,
+      "points": [{"x":100,"y":100},{"x":200,"y":200},{"x":300,"y":150}],
+      "tValues": [0,1]
+    }
+  ]
+}
