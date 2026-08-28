@@ -22,7 +22,7 @@ import {
   type AgentDrawingPayload,
   type DrawingDocument,
 } from "../src/domain/types.js";
-import { applyPayload, validateStoredDocument } from "../src/domain/validation.js";
+import { applyPayload, validatePayload, validateStoredDocument } from "../src/domain/validation.js";
 import { createMemoryWorkerEnvironment, MemoryBrowserRun } from "./relay-worker-mock.js";
 
 type JsonObject = Record<string, unknown>;
@@ -234,8 +234,10 @@ export async function runMcpTests() {
   assert(
     Array.isArray(inputSchema.required) &&
       inputSchema.required.includes("title") &&
+      asObject(inputProperties.schemaVersion).type === "string" &&
+      asObject(inputProperties.schemaVersion).const === "0.1" &&
       "$defs" in inputSchema,
-    "MCP tool schema requires a title and reuses the canonical operation definitions",
+    "MCP create schema explicitly requires string schemaVersion 0.1 and reuses canonical operations",
   );
   assert(
     typeof tool.description === "string" &&
@@ -248,6 +250,7 @@ export async function runMcpTests() {
   const continueProperties = asObject(continueSchema.properties);
   assert(
     continueTool.name === MCP_CONTINUE_TOOL_NAME &&
+      asObject(continueProperties.schemaVersion).type === "string" &&
       asObject(continueProperties.schemaVersion).const === "0.1" &&
       typeof continueProperties.sourceResultUrl === "object" &&
       typeof continueProperties.operations === "object" &&
@@ -312,6 +315,30 @@ export async function runMcpTests() {
       environment.DB.rows.size === 1,
     "create_drawing_result sends a small completed payload through encrypted relay",
   );
+  const numericCreateEnvironment = createMemoryWorkerEnvironment();
+  const numericCreateResult = structuredResult(await (await createRelayWorker({
+    now: () => Date.parse("2026-08-27T00:00:00.000Z"),
+    resultIdFactory: () => "V".repeat(24),
+  }).fetch(request(callBody({ ...payload, schemaVersion: 0.1 })), numericCreateEnvironment)).json());
+  assert(
+    numericCreateResult.result.isError === false && numericCreateEnvironment.DB.rows.size === 1,
+    "MCP create normalizes numeric schemaVersion 0.1 before strict payload validation",
+  );
+  assert(
+    !validatePayload({ ...payload, schemaVersion: 0.1 }).ok,
+    "canonical payload validation remains string-only outside the MCP adapter",
+  );
+  for (const invalidVersion of [0.2, "0.2"]) {
+    const invalidVersionEnvironment = createMemoryWorkerEnvironment();
+    const invalidVersionResult = structuredResult(await (await createRelayWorker().fetch(
+      request(callBody({ ...payload, schemaVersion: invalidVersion })),
+      invalidVersionEnvironment,
+    )).json());
+    assert(
+      invalidVersionResult.result.isError === true && invalidVersionEnvironment.DB.rows.size === 0,
+      `MCP create rejects unsupported ${typeof invalidVersion} schemaVersion without a result`,
+    );
+  }
   assert(
     validResult.content.text === `[《${payload.title}》](${resultUrl})` &&
       validResult.content.text.split(resultUrl).length === 2 &&
@@ -791,6 +818,37 @@ export async function runMcpTests() {
       branchEnvironment.DB.rows.size === 2,
     "continue_drawing_result restores an encrypted source and returns a compact branch Result with preview",
   );
+  const numericContinueCall = structuredResult(await (await branchWorker.fetch(
+    request(callBody({
+      schemaVersion: 0.1,
+      sourceResultUrl,
+      title: "MCP numeric schema branch",
+      operations: continueOperations,
+    }, "numeric-branch-result", MCP_CONTINUE_TOOL_NAME)),
+    branchEnvironment,
+  )).json());
+  const numericContinueRowCount: number = branchEnvironment.DB.rows.size;
+  assert(
+    numericContinueCall.result.isError === false && numericContinueRowCount === 3,
+    "MCP continue normalizes numeric schemaVersion 0.1 before strict delta validation",
+  );
+  for (const invalidVersion of [0.2, "0.2"]) {
+    const rowsBeforeInvalidVersion: number = branchEnvironment.DB.rows.size;
+    const invalidContinueCall = structuredResult(await (await branchWorker.fetch(
+      request(callBody({
+        schemaVersion: invalidVersion,
+        sourceResultUrl,
+        title: "MCP invalid schema branch",
+        operations: continueOperations,
+      }, `invalid-branch-${typeof invalidVersion}`, MCP_CONTINUE_TOOL_NAME)),
+      branchEnvironment,
+    )).json());
+    assert(
+      invalidContinueCall.result.isError === true &&
+        branchEnvironment.DB.rows.size === rowsBeforeInvalidVersion,
+      `MCP continue rejects unsupported ${typeof invalidVersion} schemaVersion without a result`,
+    );
+  }
   const branchUrl = String(continueCall.structured.resultUrl);
   const branchLocation = parseRelayResultUrl(branchUrl);
   assert(branchLocation !== null && branchUrl.length < 512, "continued branch uses the existing compact relay Result format");
@@ -909,6 +967,7 @@ export async function runMcpTests() {
   );
 
   const branchRowsBeforeFailure = branchEnvironment.DB.rows.size;
+  const branchPreviewCallsBeforeFailure = branchEnvironment.BROWSER.calls.length;
   const wrongKeyUrl = new URL(sourceResultUrl);
   wrongKeyUrl.hash = `#relay-key=${"A".repeat(43)}`;
   const wrongKeyResult = structuredResult(await (await branchWorker.fetch(
@@ -957,7 +1016,7 @@ export async function runMcpTests() {
   assert(
     invalidDeltaResult.result.isError === true &&
       branchEnvironment.DB.rows.size === branchRowsBeforeFailure &&
-      branchEnvironment.BROWSER.calls.length === 2,
+      branchEnvironment.BROWSER.calls.length === branchPreviewCallsBeforeFailure,
     "invalid continuation delta is rejected before source restore, result storage, or preview",
   );
   const incompleteDeltaResult = structuredResult(await (await branchWorker.fetch(

@@ -67,6 +67,16 @@ MCP 使用 Streamable HTTP，提供两个写工具：
 Free Draw 是 `create_drawing_result` 的模型 guidance：用户不指定题材时，模型自行
 决定构图、工具、颜色、粗细、stroke order 与完成时机。
 
+### 模型用量提醒
+
+Drawing Lab 不调用图像生成模型直接产出成品图。AI 会自行输出实际的结构化绘画
+操作，包括工具、颜色、画笔粗细和笔画路径/坐标，再由 Drawing Lab Engine 执行并
+Replay。
+
+因此，复杂画作可能需要模型输出较多 structured operations，并消耗更多模型 token
+或使用额度。实际消耗取决于模型、客户端、画作复杂度和修改轮数；这不是 Drawing
+Lab 额外收取的费用。
+
 聊天客户端能否调用这些工具、是否展示 MCP ImageContent，取决于客户端当前是否
 支持 Remote MCP、write tool calls 与 image content；本项目不声称所有 ChatGPT、
 Claude 或其他客户端版本都具备这些能力。

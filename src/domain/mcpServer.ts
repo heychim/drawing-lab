@@ -63,12 +63,18 @@ export type McpServerOptions = {
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+function normalizeMcpToolArguments(input: unknown): unknown {
+  if (!isRecord(input) || input.schemaVersion !== 0.1) return input;
+  return { ...input, schemaVersion: "0.1" };
+}
+
 const mcpInputSchema = (() => {
   const schema = structuredClone(agentPayloadSchema) as UnknownRecord;
   const properties = schema.properties as UnknownRecord;
   schema.required = ["schemaVersion", "documentAction", "title", "operations"];
   schema.properties = {
     ...properties,
+    schemaVersion: { type: "string", const: "0.1" },
     documentAction: {
       const: "new_drawing",
       description: "MCP1 creates a new completed Drawing Lab result.",
@@ -85,7 +91,7 @@ const mcpContinueInputSchema = (() => {
     additionalProperties: false,
     required: ["schemaVersion", "sourceResultUrl", "title", "operations"],
     properties: {
-      schemaVersion: { const: "0.1" },
+      schemaVersion: { type: "string", const: "0.1" },
       sourceResultUrl: {
         type: "string",
         format: "uri",
@@ -588,12 +594,13 @@ export async function handleMcpRequest(
     if (parsed.params.name !== MCP_TOOL_NAME && parsed.params.name !== MCP_CONTINUE_TOOL_NAME) {
       return rpcError(id, -32601, "Unknown tool");
     }
+    const argumentsInput = normalizeMcpToolArguments(parsed.params.arguments);
     if (parsed.params.name === MCP_CONTINUE_TOOL_NAME) {
       return continueDrawingResult(
         id,
         request,
         environment,
-        parsed.params.arguments,
+        argumentsInput,
         storeRelayResult,
         loadRelayResult,
         options,
@@ -604,7 +611,7 @@ export async function handleMcpRequest(
       id,
       request,
       environment,
-      parsed.params.arguments,
+      argumentsInput,
       storeRelayResult,
       options,
       modern,
