@@ -71,7 +71,7 @@ import {
 } from "../src/domain/types.js";
 import { applyPayload, validatePayload, validateStoredDocument } from "../src/domain/validation.js";
 import { commandsAtProgress, createDerivedPath } from "../src/renderer/curvePath.js";
-import { createFinalRenderPlan } from "../src/renderer/renderPlan.js";
+import { createFinalRenderPlan, createRenderPlan } from "../src/renderer/renderPlan.js";
 import { renderPlanToSvg } from "../src/renderer/svgPreview.js";
 import { createMemoryWorkerEnvironment } from "./relay-worker-mock.js";
 
@@ -187,6 +187,27 @@ if (!artBrushDocument.ok) throw new Error("FAIL: art brush fixture was rejected"
 const artBrushCanonicalBefore = JSON.stringify(artBrushDocument.value);
 const artBrushPlanA = createFinalRenderPlan(artBrushDocument.value);
 const artBrushPlanB = createFinalRenderPlan(artBrushDocument.value);
+// Same curve, different nib. A transient at 100% must match the committed
+// stroke even though its temporary operationIndex differs.
+for (const tool of ["soft_pencil","ink_brush"] as const) {
+  const op = {type:"stroke" as const, tool, color:"#53576A", brushSize:14, semanticId:"leaf",
+    points:[{x:20,y:80},{x:150,y:35},{x:260,y:90}], tValues:[0,0.33,1]};
+  const made = applyPayload({...artBrushPayload, operations:[
+    {type:"select_tool",tool},{type:"set_color",color:op.color},{type:"set_brush_size",brushSize:14},
+    op,{type:"undo"},{type:"redo"},{type:"complete"}]});
+  assert(made.ok, "natural tool supports canonical undo and redo");
+  if (!made.ok) throw Error("invalid natural brush fixture");
+  const doc = made.value;
+  const final = createFinalRenderPlan(doc);
+  const state = deriveDocumentState({...doc,operations:doc.operations.slice(0,3)});
+  const frame = (progress:number) => createRenderPlan(doc.canvas.background,state,{operation:op,progress});
+  assert(final.strokes[0].ink?.length === (tool === "soft_pencil" ? 2 : 1),"natural tool emits material-specific fill geometry");
+  assert(renderPlanToSvg(frame(1)) === renderPlanToSvg(final),"transient and restored final outlines agree");
+  assert(frame(0).strokes.length === 0 && renderPlanToSvg(frame(.4)) !== renderPlanToSvg(final),"progress reveals only the partial mark");
+  assert(renderPlanToSvg(final) === renderPlanToSvg(createFinalRenderPlan(JSON.parse(JSON.stringify(doc)))),"natural geometry survives reload deterministically");
+  const dot = createRenderPlan(doc.canvas.background,state,{operation:{...op,points:[op.points[0],op.points[0]],tValues:[0,1]},progress:1});
+  assert(!!dot.strokes[0].ink?.[0].d && !renderPlanToSvg(dot).includes("NaN"),"coincident points produce a finite dot");
+}
 const artBrushStroke = (tool: "graphite" | "watercolor" | "marker") =>
   artBrushPlanA.strokes.find((stroke) => stroke.tool === tool);
 assert(artBrushStroke("graphite")?.passes?.length === 3, "graphite derives three dry-texture render passes");
@@ -225,7 +246,7 @@ assert(
 expectRejected({
   ...validPayload,
   operations: [{ type: "select_tool", tool: "airbrush" }],
-}, "must be pencil, brush, graphite, watercolor, marker, or eraser");
+}, "tool must be one of:");
 
 const checkpointBrushPayload: AgentDrawingPayload = {
   schemaVersion: "0.1",

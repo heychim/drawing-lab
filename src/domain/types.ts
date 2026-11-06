@@ -11,6 +11,8 @@ export const DRAWING_LIMITS = {
 export type DrawingTool =
   | "pencil"
   | "brush"
+  | "soft_pencil"
+  | "ink_brush"
   | "graphite"
   | "watercolor"
   | "marker"

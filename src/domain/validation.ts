@@ -27,7 +27,7 @@ const OPERATION_TYPES = new Set([
   "redo",
   "complete",
 ]);
-const STROKE_TOOLS = ["pencil", "brush", "graphite", "watercolor", "marker"] as const;
+const STROKE_TOOLS = ["pencil", "brush", "graphite", "watercolor", "marker", "soft_pencil", "ink_brush"] as const;
 const TOOLS = new Set([...STROKE_TOOLS, "eraser"]);
 const isStrokeTool = (value: unknown): value is StrokeTool =>
   typeof value === "string" && (STROKE_TOOLS as readonly string[]).includes(value);
@@ -155,7 +155,7 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
     case "select_tool": {
       requireExactKeys(value, ["type", "tool"], ["type", "tool"], path, errors);
       if (typeof value.tool !== "string" || !TOOLS.has(value.tool)) {
-        errors.push(`${path}.tool must be pencil, brush, graphite, watercolor, marker, or eraser`);
+        errors.push(`${path}.tool must be one of: ${[...TOOLS].join(", ")}`);
         return null;
       }
       return { type: "select_tool", tool: value.tool as DrawingTool };
@@ -182,7 +182,7 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
       const color = readColor(value.color, `${path}.color`, errors);
       const brushSize = readBrushSize(value.brushSize, `${path}.brushSize`, errors);
       if (!isStrokeTool(value.tool)) {
-        errors.push(`${path}.tool must be pencil, brush, graphite, watercolor, or marker`);
+        errors.push(`${path}.tool must be one of: ${STROKE_TOOLS.join(", ")}`);
       }
       if (!geometry || !color || !brushSize || !isStrokeTool(value.tool)) {
         return null;

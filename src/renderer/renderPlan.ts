@@ -4,6 +4,7 @@ import {
   type EngineState,
 } from "../domain/engine.js";
 import type { DrawingDocument } from "../domain/types.js";
+import { naturalInk, type InkLayer } from "./naturalStroke.js";
 import {
   commandsAtProgress,
   createDerivedPath,
@@ -23,6 +24,7 @@ export type RenderPlanStroke = {
   globalAlpha: number;
   commands: RenderCommand[];
   passes?: RenderPlanPass[];
+  ink?: InkLayer[];
 };
 
 export type RenderPlanPass = {
@@ -51,6 +53,7 @@ export type FinalRenderPlan = RenderPlan & {
 };
 
 const derivedPathCache = new WeakMap<DrawableOperation, DerivedPath>();
+const filledPaths = new WeakMap<InkLayer, Path2D>();
 
 function getDerivedPath(operation: DrawableOperation) {
   const cached = derivedPathCache.get(operation);
@@ -148,7 +151,8 @@ function createStroke(
   background: string,
   progress: number,
 ): RenderPlanStroke | null {
-  const commands = commandsAtProgress(getDerivedPath(operation), progress);
+  const path = getDerivedPath(operation);
+  const commands = commandsAtProgress(path, progress);
   if (commands.length < 2) return null;
   const stroke: RenderPlanStroke = {
     operationIndex,
@@ -161,6 +165,9 @@ function createStroke(
     commands,
   };
   const passes = createArtBrushPasses(operation);
+  if (operation.type === "stroke" && (operation.tool === "soft_pencil" || operation.tool === "ink_brush")) {
+    stroke.ink = naturalInk(operation, path, progress, commands[commands.length-1].point);
+  }
   if (passes) stroke.passes = passes;
   return stroke;
 }
@@ -203,6 +210,21 @@ export function paintRenderPlanToCanvas(
   context.fillStyle = plan.background;
   context.fillRect(0, 0, plan.width, plan.height);
   for (const stroke of plan.strokes) {
+    if (stroke.ink) {
+      context.save();
+      context.fillStyle = stroke.strokeStyle;
+      for (const layer of stroke.ink) {
+        context.globalAlpha = layer.opacity;
+        let outline = filledPaths.get(layer);
+        if (!outline) {
+          outline = new Path2D(layer.d);
+          filledPaths.set(layer, outline);
+        }
+        context.fill(outline);
+      }
+      context.restore();
+      continue;
+    }
     const passes = stroke.passes ?? [pass(
       stroke.strokeStyle,
       stroke.lineWidth,

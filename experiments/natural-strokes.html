@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Drawing Lab · paired stroke study</title>
+<style>
+*{box-sizing:border-box}html{scrollbar-width:none}body{margin:0;padding:24px;background:#eee9dc;color:#3e4239;font:16px Georgia,serif}
+main{display:flex;gap:18px}section{flex:1;min-width:0;background:#fff9ed;padding:16px}
+h1{font-size:22px;font-weight:normal;margin:0 0 18px}h2{font-size:18px;margin:0}
+small{font:13px system-ui;color:#586153}canvas{width:100%;display:block}
+</style>
+<h1>Drawing Lab · Olive branch study</h1><main></main>
+<script type="module">
+import {applyPayload} from '../src/domain/validation.ts';
+import {createFinalRenderPlan, paintRenderPlanToCanvas} from '../src/renderer/renderPlan.ts';
+import {renderPlanToSvg} from '../src/renderer/svgPreview.ts';
+import {createPngExportCanvas} from '../src/domain/pngExport.ts';
+
+const sections = [];
+for (const natural of [false,true]) {
+  const ops = [];
+  function line(name, pencil, color, brushSize, coords) {
+    const tool = pencil ? (natural?'soft_pencil':'pencil') : (natural?'ink_brush':'brush');
+    ops.push({type:'select_tool',tool},{type:'set_color',color},{type:'set_brush_size',brushSize},
+      {type:'stroke',tool,color,brushSize,semanticId:name,
+       points:coords.map(([x,y])=>({x,y})),tValues:coords.map((_,i)=>i/(coords.length-1))});
+  }
+  line('stem',false,'#534E3D',14,[[165,565],[320,480],[475,369],[634,212],[762,104]]);
+  const leaves=[[310,480,-146,-145],[402,423,194,5],[487,355,-67,-199],
+    [541,307,183,-36],[630,218,-20,-138],[673,181,157,-22],[730,131,78,-80]];
+  for (const [i,[x,y,dx,dy]] of leaves.entries()) {
+    const len=Math.hypot(dx,dy), nx=-dy/len, ny=dx/len;
+    const p=(t,offset)=>[x+dx*t+nx*offset,y+dy*t+ny*offset];
+    line('leaf-'+i,false,'#435F4D',11,[p(0,0),p(.27,-18),p(.65,-21),p(1,0),p(.63,19),p(.27,16),p(0,0)]);
+    line('vein-'+i,true,'#78815D',8,[p(.03,0),p(.38,-4),p(.7,1),p(.96,0)]);
+    for(let j=0;j<4;j++) line('hatch-'+i+'-'+j,true,'#83916F',5,
+      [p(.20+j*.13,0),p(.27+j*.13,7),p(.35+j*.13,14-j)]);
+  }
+  line('ink-swatch',false,'#435F4D',32,[[100,650],[196,610],[287,657],[375,604],[441,623]]);
+  line('pencil-swatch',true,'#685950',26,[[550,650],[646,610],[737,657],[825,604],[891,623]]);
+  const validated=applyPayload({schemaVersion:'0.1',documentAction:'new_drawing',title:'Olive',operations:[...ops,{type:'complete'}]});
+  if (!validated.ok) throw Error(validated.errors.join());
+  const plan=createFinalRenderPlan(validated.value);
+  const section=document.createElement('section');
+  section.innerHTML=natural?'<h2>Natural</h2><small>Ink brush &amp; soft pencil</small>':'<h2>Classic</h2><small>Brush &amp; pencil</small>';
+  document.querySelector('main').append(section);
+  const canvas=document.createElement('canvas');
+  canvas.width=1000; canvas.height=750; section.append(canvas);
+  paintRenderPlanToCanvas(canvas.getContext('2d'),plan);
+  if(canvas.toDataURL()!==createPngExportCanvas(validated.value).toDataURL()) throw Error('export mismatch');
+  // Rasterize the actual preview SVG at export size to isolate geometry from image scaling.
+  const img=new Image(); img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(renderPlanToSvg(plan,1000,750));
+  await img.decode();
+  const comparison=document.createElement('canvas');
+  comparison.width=1000;comparison.height=750;
+  const ctx=comparison.getContext('2d');ctx.drawImage(img,0,0);
+  const a=ctx.getImageData(0,0,1000,750).data,b=canvas.getContext('2d').getImageData(0,0,1000,750).data;
+  let error=0;for(let i=0;i<a.length;i++)error+=Math.abs(a[i]-b[i]);
+  sections.push(error/a.length);
+}
+document.body.dataset.meanChannelError=JSON.stringify(sections);
+</script></html>

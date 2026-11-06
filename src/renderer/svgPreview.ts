@@ -34,6 +34,8 @@ export function renderPlanToSvg(
   height = MCP_PREVIEW_HEIGHT,
 ) {
   const paths = plan.strokes.flatMap((stroke) => {
+    if (stroke.ink) return stroke.ink.map(layer =>
+      `<path d="${layer.d}" fill="${attribute(stroke.strokeStyle)}" opacity="${number(layer.opacity)}"/>`);
     const passes: RenderPlanPass[] = stroke.passes ?? [{
       strokeStyle: stroke.strokeStyle,
       lineWidth: stroke.lineWidth,

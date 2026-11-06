@@ -82,6 +82,8 @@ const DEFAULT_AGENT_PAYLOAD = JSON.stringify({
 const TOOL_META: Record<DrawingTool, { icon: PixelIconName; label: string }> = {
   pencil: { icon: "pencil", label: "铅笔" },
   brush: { icon: "brush", label: "画笔" },
+  soft_pencil: { icon: "pencil", label: "软铅笔" },
+  ink_brush: { icon: "brush", label: "毛笔" },
   graphite: { icon: "graphite", label: "石墨" },
   watercolor: { icon: "watercolor", label: "水彩" },
   marker: { icon: "marker", label: "马克笔" },
@@ -593,7 +595,8 @@ export default function App() {
       <section className="top-tools" aria-label="回放工具状态">
         <span className="tool-state-caption">回放工具状态</span>
         <div className="tool-state-group">
-          {(Object.keys(TOOL_META) as DrawingTool[]).map((toolName) => (
+          {([tool === "soft_pencil" ? tool : "pencil", tool === "ink_brush" ? tool : "brush",
+            "graphite", "watercolor", "marker", "eraser"] as DrawingTool[]).map((toolName) => (
             <div
               key={toolName}
               className={`tool-tile ${tool === toolName ? "is-active" : ""}`}

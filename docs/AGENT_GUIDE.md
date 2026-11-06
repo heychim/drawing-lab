@@ -209,7 +209,11 @@ theme from the user.
   `^[a-z0-9][a-z0-9_-]{0,79}$`.
 - A stroke repeats its effective `tool`, `color`, and `brushSize`; they must
   match the preceding tool-state operations.
-- Drawing tools are `pencil`, `brush`, `graphite`, `watercolor`, and `marker`;
+- Choose `soft_pencil` for grainy, pressure-shaped sketch lines and `ink_brush`
+  for broad downstrokes, fine turns and tapered releases. Both accept the same
+  coordinates, progression and size as the other tools. Use `pencil` or
+  `brush` for an even outline.
+- Other drawing tools include `graphite`, `watercolor`, and `marker`;
   `eraser` is used only with `erase`. `graphite` adds a dry broken texture,
   `watercolor` builds translucent overlapping washes, and `marker` produces a
   broad squared color band. These are deterministic derived render effects;
