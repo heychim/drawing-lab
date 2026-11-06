@@ -57,6 +57,31 @@ New drawings start with pencil, #6B4F4F and size 3. For continuation, replace
 tool, color and size until a step changes them. Limits apply after expansion.
 The web Agent Mode accepts canonical `operations`.
 
+### Paint a region with one path
+
+Choose `wash_fill` for transparent glazes that show earlier colors, or
+`gouache_fill` for matte, nearly opaque coverage. Send the perimeter once.
+For example, these steps put a clay-colored roof over a blue wash:
+
+```json
+[
+  {"tool":"wash_fill"},{"color":"#83BBD2"},
+  {"paths":[{"id":"sky","xy":[[90,90],[910,90],[910,540],[90,540]]}]},
+  {"tool":"gouache_fill"},{"color":"#A55543"},
+  {"paths":[{"id":"roof","xy":[[280,470],[490,310],[730,455],[705,478]]}]},
+  "complete"
+]
+```
+
+Use at least three non-collinear vertices, in boundary order. Edges are
+straight and the last joins the first automatically. Add vertices around
+curves and use the even-odd rule for crossing outlines. Each region is one
+undo target. Draw transparent layers, opaque shapes and line tools in the
+order you want them to cover one another. Size controls the wash rim or the
+length of dry gouache marks; it does not expand the boundary. Replay spreads
+paint from the first vertex; optional `t` changes its pacing. Leave it out
+for the default. Line tools still paint along the path, including on closed loops.
+
 ## New drawing
 
 `create_drawing_result` uses the existing AgentDrawingPayload fields and

@@ -72,6 +72,7 @@ function normalizeMcpToolArguments(input: unknown): unknown {
 const drawingInputChoice = [{ required: ["steps"] }, { required: ["operations"] }];
 const compactGuidance = "Prefer steps to save tokens. Use exactly one of steps or operations. " +
   "In steps set tool/color/brushSize once, then group independent strokes as {paths:[{id,xy:[[x,y],...]}]}. " +
+  "For large colored areas use wash_fill (translucent glaze) or gouache_fill (covering matte paint): one path per closed polygon, 3+ non-collinear boundary vertices in order; omit repeated first point. " +
   "Optional t overrides uniform progression. Use eraser for erase paths and strings for undo, redo and final complete. ";
 
 const mcpInputSchema = (() => {

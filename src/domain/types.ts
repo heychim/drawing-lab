@@ -8,17 +8,14 @@ export const DRAWING_LIMITS = {
   serializedBytes: 2 * 1024 * 1024,
 } as const;
 
-export type DrawingTool =
-  | "pencil"
-  | "brush"
-  | "soft_pencil"
-  | "ink_brush"
-  | "graphite"
-  | "watercolor"
-  | "marker"
-  | "eraser";
-
-export type StrokeTool = Exclude<DrawingTool, "eraser">;
+export const STROKE_TOOLS = [
+  "pencil", "brush", "graphite", "watercolor", "marker", "soft_pencil", "ink_brush",
+  "wash_fill", "gouache_fill",
+] as const;
+export type StrokeTool = typeof STROKE_TOOLS[number];
+export type DrawingTool = StrokeTool | "eraser";
+export const isPaintRegionTool = (tool: unknown): tool is "wash_fill" | "gouache_fill" =>
+  tool === "wash_fill" || tool === "gouache_fill";
 
 export type Point = {
   x: number;

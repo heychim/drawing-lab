@@ -76,6 +76,7 @@ import { renderPlanToSvg } from "../src/renderer/svgPreview.js";
 import { createMemoryWorkerEnvironment } from "./relay-worker-mock.js";
 
 import { runMcpTests } from "./mcp-tests.js";
+import { expandMcpSteps } from "../src/domain/mcpCompactSteps.js";
 let passed = 0;
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -398,6 +399,44 @@ Object.defineProperty(globalThis, "window", {
   },
 });
 
+{
+  const outline = [[30, 30], [110, 30], [70, 52], [110, 94], [30, 94]];
+  const steps = expandMcpSteps([
+    { tool: "wash_fill" }, { color: "#529CBB" }, { paths: [{ id: "sky", xy: outline }] },
+    { tool: "gouache_fill" }, { paths: [{ id: "leaf", xy: outline, t: [0, .1, .3, .55, 1] }] },
+    "undo", "redo", { tool: "soft_pencil" }, { paths: [{ id: "vein", xy: [[33, 44], [77, 63]] }] },
+    { tool: "eraser" }, { paths: [{ id: "cut", xy: [[55, 58], [71, 62]] }] }, "complete",
+  ]);
+  assert(steps.ok, "compact region inputs share stroke/erase syntax and inherit paint state");
+  const made = applyPayload({ ...validPayload, operations: steps.value });
+  assert(made.ok && validateStoredDocument(made.value).ok, "mixed region, line and erasure persist as a valid drawing");
+  const doc = made.value, snapshot = JSON.stringify(doc);
+  const plan = createFinalRenderPlan(doc), svg = renderPlanToSvg(plan);
+  assert(plan.strokes.map(s => s.tool).join() === "wash_fill,gouache_fill,soft_pencil,eraser", "regions and old tools retain paint order");
+  assert(plan.strokes[0].region?.paint.boundary === "M30 30L110 30L70 52L110 94L30 94Z", "concave boundary uses exactly the specified edges");
+  assert(svg.includes('clip-rule="evenodd"') && svg.includes('id="grain-gouache_fill"') && svg.includes('id="grain-wash_fill"'), "preview consumes the closed region and both paper materials");
+  assert(renderPlanToSvg(createFinalRenderPlan(JSON.parse(snapshot))) === svg, "reloading a region recreates identical paint");
+  assert(createFinalRenderPlan({ ...doc, operations: doc.operations.slice(0, 6) }).strokes.length === 1, "one undo removes exactly the covering region");
+  const op = doc.operations[4];
+  assert(op.type === "stroke", "one compact path produces one canonical region drawable");
+  const prefix = deriveDocumentState({ ...doc, operations: doc.operations.slice(0, 4) });
+  const frame = (progress: number) => createRenderPlan(doc.canvas.background, prefix, { operation: op, progress });
+  const radius = frame(.3).strokes[1].region!;
+  assert(frame(0).strokes.length === 1 && radius.revealRadius === radius.paint.extent * .5, "custom progression reveals a partial region from its first vertex");
+  assert(renderPlanToSvg(frame(1)) === renderPlanToSvg(createFinalRenderPlan({ ...doc, operations: doc.operations.slice(0, 5) })), "transient at 100% and committed region render identically");
+  for (const xy of [[[1, 1], [3, 4]], [[1, 1], [1, 1], [1, 1]], [[1, 1], [3, 3], [5, 5]]]) {
+    const bad = expandMcpSteps([{ tool: "wash_fill" }, { paths: [{ id: "flat", xy }] }]);
+    assert(bad.ok && !applyPayload({ ...validPayload, operations: bad.value }).ok, "degenerate polygon fails canonical validation");
+  }
+  const branch = createDrawingBranch(doc, { title: "Glazed again", operations: [doc.operations[0], doc.operations[2], { type: "complete" }] });
+  assert(branch.ok && branch.value.latestPlaybackRange.from === doc.operations.length - 1, "continuation appends a new glaze and preserves the original prefix");
+  for (const mode of ["full", "latest"] as const) {
+    let last: PlaybackFrame | undefined;
+    await playDocument(branch.value, mode, f => { last = f; }, { aborted: false, addEventListener() {} } as unknown as AbortSignal);
+    assert(last?.status === "ready" && renderPlanToSvg(createRenderPlan(doc.canvas.background, last.engine)) === renderPlanToSvg(createFinalRenderPlan(branch.value)), "mixed-media Replay reaches the identical final paint plan: " + mode);
+  }
+  assert(JSON.stringify(doc) === snapshot, "preview, branch and playback leave the source canonical data unchanged");
+}
 const artBrushFrames: PlaybackFrame[] = [];
 await playDocument(
   artBrushDocument.value,

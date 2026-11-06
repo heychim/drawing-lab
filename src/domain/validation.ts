@@ -4,6 +4,8 @@ import {
   CANVAS_WIDTH,
   DEFAULT_BACKGROUND,
   DRAWING_LIMITS,
+  STROKE_TOOLS,
+  isPaintRegionTool,
   type AgentDrawingPayload,
   type DrawingDocument,
   type DrawingOperation,
@@ -27,7 +29,6 @@ const OPERATION_TYPES = new Set([
   "redo",
   "complete",
 ]);
-const STROKE_TOOLS = ["pencil", "brush", "graphite", "watercolor", "marker", "soft_pencil", "ink_brush"] as const;
 const TOOLS = new Set([...STROKE_TOOLS, "eraser"]);
 const isStrokeTool = (value: unknown): value is StrokeTool =>
   typeof value === "string" && (STROKE_TOOLS as readonly string[]).includes(value);
@@ -186,6 +187,14 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
       }
       if (!geometry || !color || !brushSize || !isStrokeTool(value.tool)) {
         return null;
+      }
+      if (isPaintRegionTool(value.tool)) {
+        const [a] = geometry.points;
+        const b = geometry.points.find(p => p.x !== a.x || p.y !== a.y);
+        if (!b || !geometry.points.some(p => (p.y - a.y) * (b.x - a.x) !== (p.x - a.x) * (b.y - a.y))) {
+          errors.push(`${path}.points must contain at least three non-collinear boundary points`);
+          return null;
+        }
       }
       return { type: "stroke", ...geometry, tool: value.tool, color, brushSize } as StrokeOperation;
     }

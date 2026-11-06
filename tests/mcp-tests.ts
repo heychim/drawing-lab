@@ -243,7 +243,7 @@ export async function runMcpTests() {
   const exposedTools = asObject(schemaDefinitions.tool).enum;
   assert(
     Array.isArray(exposedTools) &&
-      ["pencil", "brush", "graphite", "watercolor", "marker", "eraser"].every((name) =>
+      ["pencil", "brush", "graphite", "watercolor", "marker", "soft_pencil", "ink_brush", "wash_fill", "gouache_fill", "eraser"].every((name) =>
         exposedTools.includes(name)),
     "MCP tools/list publishes all legacy and art-brush canonical tools",
   );
@@ -378,6 +378,12 @@ export async function runMcpTests() {
   const invalidBranch = await callCompact({...branchHeader, steps:[{paths:[{...mark,t:[0,1,0]}]},"complete"]}, MCP_CONTINUE_TOOL_NAME);
   assert(invalidBranch.result.isError === true && compactEnvironment.DB.rows.size === 2,
     "invalid compact continuation preserves source and publishes no result");
+  const wash = await callCompact({ ...compactHeader, steps: [{tool:"wash_fill"}, {paths:[mark]}, "complete"] });
+  const overlay = await callCompact({ schemaVersion:"0.1", title:"Painted ridge", sourceResultUrl:wash.structured.resultUrl,
+    steps:[{tool:"gouache_fill"}, {paths:[mark]}, "complete"] }, MCP_CONTINUE_TOOL_NAME);
+  const mixedPaint = await readCompact(overlay.structured.resultUrl);
+  assert(createFinalRenderPlan(mixedPaint).strokes.map(s => s.region?.paint.medium).join() === "wash_fill,gouache_fill",
+    "MCP compact create and continue round-trip both region materials through the existing encrypted Result");
   const numericCreateResult = structuredResult(await (await createRelayWorker({
     now: () => Date.parse("2026-08-27T00:00:00.000Z"),
     resultIdFactory: () => "V".repeat(24),

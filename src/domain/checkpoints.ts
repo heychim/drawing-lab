@@ -4,7 +4,7 @@ import {
   reduceOperations,
   type EngineState,
 } from "./engine.js";
-import type { DrawingDocument, DrawingTool } from "./types.js";
+import { STROKE_TOOLS, type DrawingDocument, type DrawingTool } from "./types.js";
 
 export const CHECKPOINT_INTERVAL = 350;
 export const CHECKPOINT_VERSION = 1;
@@ -113,7 +113,7 @@ function hydrateCheckpoint(
   const snapshot = checkpoint.state;
   if (
     !snapshot ||
-    !["pencil", "brush", "graphite", "watercolor", "marker", "soft_pencil", "ink_brush", "eraser"].includes(snapshot.tool) ||
+    !(snapshot.tool === "eraser" || STROKE_TOOLS.includes(snapshot.tool)) ||
     typeof snapshot.color !== "string" ||
     !Number.isInteger(snapshot.brushSize) ||
     typeof snapshot.completed !== "boolean" ||

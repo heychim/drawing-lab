@@ -86,6 +86,8 @@ const TOOL_META: Record<DrawingTool, { icon: PixelIconName; label: string }> = {
   ink_brush: { icon: "brush", label: "毛笔" },
   graphite: { icon: "graphite", label: "石墨" },
   watercolor: { icon: "watercolor", label: "水彩" },
+  wash_fill: { icon: "watercolor", label: "罩染" },
+  gouache_fill: { icon: "brush", label: "水粉" },
   marker: { icon: "marker", label: "马克笔" },
   eraser: { icon: "eraser", label: "橡皮" },
 };
@@ -596,7 +598,7 @@ export default function App() {
         <span className="tool-state-caption">回放工具状态</span>
         <div className="tool-state-group">
           {([tool === "soft_pencil" ? tool : "pencil", tool === "ink_brush" ? tool : "brush",
-            "graphite", "watercolor", "marker", "eraser"] as DrawingTool[]).map((toolName) => (
+            "graphite", tool === "wash_fill" || tool === "gouache_fill" ? tool : "watercolor", "marker", "eraser"] as DrawingTool[]).map((toolName) => (
             <div
               key={toolName}
               className={`tool-tile ${tool === toolName ? "is-active" : ""}`}

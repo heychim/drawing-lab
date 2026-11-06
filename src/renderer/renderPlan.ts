@@ -3,7 +3,8 @@ import {
   type DrawableOperation,
   type EngineState,
 } from "../domain/engine.js";
-import type { DrawingDocument } from "../domain/types.js";
+import { isPaintRegionTool, type DrawingDocument } from "../domain/types.js";
+import { paintRegionAt, paintRegionToCanvas, type PaintRegion } from "./paintRegion.js";
 import { naturalInk, type InkLayer } from "./naturalStroke.js";
 import {
   commandsAtProgress,
@@ -25,6 +26,7 @@ export type RenderPlanStroke = {
   commands: RenderCommand[];
   passes?: RenderPlanPass[];
   ink?: InkLayer[];
+  region?: PaintRegion;
 };
 
 export type RenderPlanPass = {
@@ -151,6 +153,14 @@ function createStroke(
   background: string,
   progress: number,
 ): RenderPlanStroke | null {
+  if (operation.type === "stroke" && isPaintRegionTool(operation.tool)) {
+    if (progress <= 0) return null;
+    return {
+      operationIndex, type: operation.type, tool: operation.tool, strokeStyle: operation.color,
+      lineWidth: operation.brushSize, globalAlpha: 1, commands: [],
+      region: paintRegionAt(operation, progress, hashSemanticId(operation.semanticId)),
+    };
+  }
   const path = getDerivedPath(operation);
   const commands = commandsAtProgress(path, progress);
   if (commands.length < 2) return null;
@@ -210,6 +220,10 @@ export function paintRenderPlanToCanvas(
   context.fillStyle = plan.background;
   context.fillRect(0, 0, plan.width, plan.height);
   for (const stroke of plan.strokes) {
+    if (stroke.region) {
+      paintRegionToCanvas(context, stroke.region, stroke.strokeStyle);
+      continue;
+    }
     if (stroke.ink) {
       context.save();
       context.fillStyle = stroke.strokeStyle;

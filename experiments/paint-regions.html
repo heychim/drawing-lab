@@ -1,0 +1,168 @@
+<!doctype html><html lang="en"><meta charset="utf-8">
+<title>Persimmons · Drawing Lab paint study</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eae5d9;color:#333c32;padding:20px 24px;font:15px system-ui,sans-serif}
+header{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
+h1,h2,p{margin:0}h1{font:normal 26px Georgia,serif}header p,output{font-size:13px;color:#555d51}
+main{display:flex;gap:16px}section{background:#fff9ed;flex:1;min-width:0}
+canvas{display:block;width:100%}footer{padding:10px 14px;background:#f7f4eb;border-top:1px solid #dcd9cd}
+h2{font:normal 18px Georgia,serif;margin-bottom:3px}
+</style>
+<header><h1>Persimmons on the bough</h1><p>Drawing Lab · same boundaries, palette and linework</p></header>
+<main></main>
+<script type="module">
+import { expandMcpSteps } from '../src/domain/mcpCompactSteps.ts';
+import { applyPayload } from '../src/domain/validation.ts';
+import { createFinalRenderPlan, createRenderPlan, paintRenderPlanToCanvas } from '../src/renderer/renderPlan.ts';
+import { createInitialEngineState } from '../src/domain/engine.ts';
+import { renderPlanToSvg } from '../src/renderer/svgPreview.ts';
+import { createDrawingPng } from '../src/domain/pngExport.ts';
+
+// A short perimeter suffices for angular leaves. For rounded fruit, sample the
+// same hand-placed controls once and feed those identical vertices to both versions.
+function rounded(points) {
+  return points.flatMap(([x,y],i) => {
+    const prev = points[(i+points.length-1)%points.length], next = points[(i+1)%points.length];
+    const after = points[(i+2)%points.length];
+    return [[x,y], [0,1].map(k => Math.round((9*(points[i][k]+next[k])-prev[k]-after[k])/16))];
+  });
+}
+
+function scanlines(id,polygon,size) {
+  const paths = [], ys = polygon.map(p=>p[1]);
+  const top=Math.min(...ys), bottom=Math.max(...ys);
+  const rows=Math.max(1,Math.ceil((bottom-top)/(size*.8)));
+  for(let row=0;row<rows;row++) {
+    const y=Math.round(top+(row+.5)*(bottom-top)/rows), intersections=[];
+    for(let i=0;i<polygon.length;i++) {
+      const [ax,ay]=polygon[i], [bx,by]=polygon[(i+1)%polygon.length];
+      if((ay>y)!==(by>y)) intersections.push(ax+(y-ay)*(bx-ax)/(by-ay));
+    }
+    intersections.sort((a,b)=>a-b);
+    for(let i=0;i+1<intersections.length;i+=2) {
+      const [l,r]=intersections.slice(i,i+2), inset=Math.min(size/2,(r-l)/2);
+      paths.push({id:id+'-'+paths.length,xy:[[Math.round(l+inset),y],[Math.round(r-inset),y]]});
+    }
+  }
+  return paths;
+}
+
+function scene(regions) {
+  const steps=[], state={};
+  function draw(tool,color,brushSize,paths) {
+    for(const [key,value] of Object.entries({tool,color,brushSize})) {
+      if(state[key]!==value) { steps.push({[key]:value}); state[key]=value; }
+    }
+    steps.push({paths});
+  }
+  function area(id,tool,color,xy,size=18) {
+    const material=regions?tool:(tool==='wash_fill'?'watercolor':'brush');
+    draw(material,color,size,regions?[{id,xy}]:scanlines(id,xy,size));
+  }
+  function line(id,tool,color,size,xy) { draw(tool,color,size,[{id,xy}]); }
+  area('morning-mist','wash_fill','#A3BEB4',rounded([[114,366],[173,210],[341,139],[564,142],
+    [746,189],[836,271],[843,391],[752,486],[604,504],[398,505],[206,465]]),26);
+  line('bough','ink_brush','#58483B',31,[[67,418],[166,344],[292,297],[390,249],[545,229],[704,178],[908,141]]);
+  line('bark','soft_pencil','#AE9273',8,[[88,397],[174,342],[297,292],[393,246],[548,224]]);
+  function leaf(id,from,to,width,color) {
+    const dx=to[0]-from[0],dy=to[1]-from[1],len=Math.hypot(dx,dy);
+    const xy=(t,n)=>[Math.round(from[0]+t*dx-n*dy/len),Math.round(from[1]+t*dy+n*dx/len)];
+    const edge=[[0,0],[.17,-.58],[.38,-.93],[.58,-.82],[.8,-.54],[1,0],
+      [.78,.27],[.64,.62],[.48,.83],[.28,.72],[.13,.41]];
+    area(id,'gouache_fill',color,edge.map(([t,w])=>xy(t,w*width)),12);
+    line(id+'-vein','soft_pencil','#C9BB85',4,[xy(.02,0),xy(.39,-.08*width),xy(.76,-.12*width),xy(.96,0)]);
+    for(const t of [.28,.49,.66]) line(id+'-rib-'+Math.round(t*100),'soft_pencil','#BBAB7D',2,
+      [xy(t,0),xy(t+.07,.23*width),xy(t+.13,.41*width)]);
+  }
+  leaf('sage',[345,268],[221,132],39,'#85946F');
+  leaf('deep-leaf',[305,289],[112,255],42,'#456751');
+  leaf('upper-leaf',[572,218],[503,88],32,'#7F9165');
+  leaf('tip-leaf',[745,173],[912,221],33,'#657F61');
+  line('small-twig','ink_brush','#71604D',15,[[735,172],[754,133],[784,109],[817,91]]);
+  function fruit(id,x,y,scale,color) {
+    const local=points=>points.map(([a,b])=>[Math.round(x+scale*a),Math.round(y+scale*b)]);
+    const fill=(name,tool,tint,points)=>area(id+name,tool,tint,local(rounded(points)));
+    fill('-body','gouache_fill',color,[[-106,-72],[-70,-106],[-18,-113],[27,-106],[71,-105],
+      [112,-80],[130,-41],[130,15],[114,64],[81,97],[30,117],[-22,114],[-68,98],[-105,65],[-124,23],[-125,-30]]);
+    fill('-glaze','wash_fill','#A74835',[[123,-48],[125,11],[109,57],[77,91],[33,110],[-12,108],
+      [-51,94],[-68,77],[-41,82],[-6,83],[45,63],[90,17]]);
+    fill('-light','wash_fill','#FFE2A0',[[-99,-49],[-82,-77],[-53,-84],[-62,-70],[-84,-47],[-94,-17]]);
+    area(id+'-calyx','gouache_fill','#585E40',local([[-4,-110],[-38,-128],[-59,-127],[-44,-112],
+      [-72,-101],[-86,-84],[-54,-92],[-28,-94],[-13,-86],[0,-67],[13,-91],[32,-94],[64,-84],
+      [49,-104],[26,-116],[33,-128],[11,-125]]),8);
+    line(id+'-fold','soft_pencil','#AE9F68',5,local([[-72,-91],[-39,-104],[-15,-103],[0,-84]]));
+    line(id+'-seam','ink_brush','#B65F3F',4,local([[35,71],[12,93],[-1,103],[-15,105]]));
+    line(id+'-shine','soft_pencil','#F8CB87',6,local([[-90,-41],[-83,-58],[-73,-68]]));
+  }
+  line('far-stem','ink_brush','#615C43',14,[[650,198],[671,211],[676,239],[681,269]]);
+  fruit('far',684,345,.78,'#E5A24E');
+  line('near-stem','ink_brush','#57543D',19,[[363,263],[381,280],[389,318],[404,349],[407,371]]);
+  fruit('near',410,488,1.12,'#E88449');
+  leaf('hanging-leaf',[379,281],[283,432],33,'#4B705A');
+  steps.push('complete'); return steps;
+}
+
+for(const regions of [false,true]) {
+  const steps=scene(regions), expanded=expandMcpSteps(steps);
+  if(!expanded.ok) throw Error(expanded.errors.join());
+  const result=applyPayload({schemaVersion:'0.1',documentAction:'new_drawing',title:'Persimmons',operations:expanded.value});
+  if(!result.ok) throw Error(result.errors.join());
+  const plan=createFinalRenderPlan(result.value), section=document.createElement('section');
+  const canvas=document.createElement('canvas'); canvas.width=1000; canvas.height=750;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true}); paintRenderPlanToCanvas(ctx,plan);
+  const strokes=plan.strokes.length, bytes=new TextEncoder().encode(JSON.stringify(steps)).length;
+  const footer=document.createElement('footer');
+  footer.innerHTML='<h2>'+(regions?'Glazes & matte gouache':'Brush strokes & watercolor')+'</h2><output>'+strokes+' paint operations · '+bytes+' bytes of compact input</output>';
+  section.append(canvas,footer); document.querySelector('main').append(section);
+
+  const exported=await createImageBitmap(await createDrawingPng(result.value));
+  const proof=document.createElement('canvas'); proof.width=1000; proof.height=750;
+  const proofCtx=proof.getContext('2d',{willReadFrequently:true}); proofCtx.drawImage(exported,0,0);
+  const pixels=c=>c.getImageData(0,0,c.canvas.width,c.canvas.height).data;
+  const original=pixels(ctx);
+  if (!pixels(proofCtx).every((v,i)=>v===original[i])) throw Error('PNG export mismatch');
+  // Compare at the real MCP preview resolution with the canvas backend at the same scale.
+  const image=new Image(); image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(renderPlanToSvg(plan));
+  await image.decode(); proof.width=image.width; proof.height=image.height;
+  proofCtx.drawImage(image,0,0); const preview=pixels(proofCtx);
+  proofCtx.scale(512/1000,384/750); paintRenderPlanToCanvas(proofCtx,plan);
+  const equivalent=pixels(proofCtx);
+  const mean=preview.reduce((sum,v,i)=>sum+Math.abs(v-equivalent[i]),0)/preview.length;
+  if(mean>1) throw Error('Preview mismatch: '+mean);
+  section.dataset.measurement=JSON.stringify({strokes,bytes,previewMeanError:+mean.toFixed(4),pngExact:true});
+}
+// Sample pixels inside, outside, and underneath a concave swatch independently
+// of the illustration and of the SVG comparison above.
+const blue=[[100,100],[440,100],[440,180],[250,180],[250,410],[100,410]];
+const under=[{tool:'gouache_fill'},{color:'#F3453A'},{paths:[{id:'under',xy:[[80,80],[320,80],[320,200],[80,200]]}]}];
+const coat=tool=>[{tool},{color:'#274AC4'},{paths:[{id:'coat',xy:blue}]}];
+function swatch(steps) {
+  const expanded=expandMcpSteps(steps);
+  if(!expanded.ok) throw Error(expanded.errors.join());
+  const result=applyPayload({schemaVersion:'0.1',documentAction:'new_drawing',operations:expanded.value});
+  if(!result.ok) throw Error(result.errors.join());
+  return result.value;
+}
+const scratch=document.createElement('canvas'); scratch.width=1000; scratch.height=750;
+const sample=scratch.getContext('2d',{willReadFrequently:true});
+function pixel(plan,x=220,y=145) {
+  paintRenderPlanToCanvas(sample,plan); return Array.from(sample.getImageData(x,y,1,1).data);
+}
+const final=steps=>createFinalRenderPlan(swatch(steps));
+const diff=(a,b)=>a.reduce((sum,v,i)=>sum+Math.abs(v-b[i]),0);
+const paper=pixel(final(['complete'])), wet=coat('wash_fill'), matte=coat('gouache_fill');
+const showThrough=coat=>diff(pixel(final([...under,...coat])),pixel(final(coat)));
+if(showThrough(wet)<70 || showThrough(matte)>=showThrough(wet)*.25) throw Error('Glaze and gouache coverage mismatch');
+if(diff(pixel(final(wet),320,270),paper)!==0) throw Error('Pigment escaped the concave contour');
+const doubled=[...blue,...blue];
+if(diff(pixel(final([{tool:'wash_fill'},{paths:[{id:'loop',xy:doubled}]}])),paper)!==0) throw Error('Even-odd interior mismatch');
+const erase=[{tool:'eraser'},{brushSize:24},{paths:[{id:'lift',xy:[[170,145],[255,145]]}]}];
+const erased=[...under,...wet,...erase];
+if(diff(pixel(final(erased)),paper)!==0 || diff(pixel(final([...erased,'undo'])),pixel(final([...under,...wet])))!==0 ||
+   diff(pixel(final([...erased,'undo','redo'])),paper)!==0) throw Error('Paint erase/undo/redo mismatch');
+const op=swatch(wet).operations.at(-1);
+const spread=t=>createRenderPlan('#FFF9ED',createInitialEngineState(),{operation:op,progress:t});
+if(diff(pixel(spread(.15),110,110),pixel(spread(1),110,110))!==0 ||
+   diff(pixel(spread(.15),394,140),paper)!==0 || diff(pixel(spread(1),394,140),paper)<40) throw Error('Partial glaze mismatch');
+document.body.dataset.verified='true';
+</script></html>
