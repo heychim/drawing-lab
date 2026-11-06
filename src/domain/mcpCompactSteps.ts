@@ -17,7 +17,11 @@ export const compactStepsSchema = array({ oneOf: [
       xy: array({ type: "array", minItems: 2, maxItems: 2,
         prefixItems: [CANVAS_WIDTH, CANVAS_HEIGHT].map(maximum => ({ type: "number", minimum: 0, maximum })) }, 2, maxPoints),
       t: array({ type: "number", minimum: 0, maximum: 1 }, 2, maxPoints),
+      smooth: ref("smooth"),
+      corners: ref("corners"),
     },
+    if: { required: ["corners"] },
+    then: { required: ["smooth"], properties: { smooth: { const: true } } },
   }, 1, DRAWING_LIMITS.operations)),
 ] }, 1, DRAWING_LIMITS.operations);
 
@@ -57,7 +61,7 @@ export function expandMcpSteps(steps: unknown, source?: DrawingDocument): Valida
       if (operations.length + step.paths.length > DRAWING_LIMITS.operations) return invalid("expanded operation limit exceeded");
       for (const [j, path] of step.paths.entries()) {
         const location = at + `.paths[${j}]`;
-        if (!record(path) || !("id" in path) || Object.keys(path).some(k => !["id","xy","t"].includes(k)) ||
+        if (!record(path) || !("id" in path) || Object.keys(path).some(k => !["id","xy","t","smooth","corners"].includes(k)) ||
             !Array.isArray(path.xy) || path.xy.length < 2) return invalid(location + " requires id and xy with at least two points");
         pointCount += path.xy.length;
         if (pointCount > maxPoints) return invalid("expanded point limit exceeded");
@@ -69,6 +73,8 @@ export function expandMcpSteps(steps: unknown, source?: DrawingDocument): Valida
         }
         operations.push({ ...(tool === "eraser" ? {type:"erase"} : {type:"stroke",color}),
           tool, brushSize, semanticId: path.id, points,
+          ...("smooth" in path && { smooth: path.smooth }),
+          ...("corners" in path && { corners: path.corners }),
           tValues: "t" in path ? path.t : points.map((_, k) => k / (points.length - 1)) });
       }
     }

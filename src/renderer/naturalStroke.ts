@@ -20,7 +20,10 @@ function onCurve(s: PathSegment, t: number): Point {
 function sample(path: DerivedPath, op: StrokeOperation) {
   const spans = path.segments.map(s => s.type === "line" ? dist(s.start,s.end) :
     dist(s.start,s.control1) + dist(s.control1,s.control2) + dist(s.control2,s.end));
-  const spacing = Math.max(3, spans.reduce((a,b) => a+b, 0) / 256);
+  const extent = spans.reduce((a,b) => a+b, 0);
+  // Resolve both shoulders of even a very short mark. Preserve the usual
+  // spacing for longer lines and a finite denominator for stationary taps.
+  const spacing = Math.max(Number.EPSILON, extent / 256, Math.min(3, extent / 8));
   const stations: Station[] = [{ ...path.start, t:0, distance:0, nx:0, ny:1, radius:0 }];
   for (const [i,s] of path.segments.entries()) {
     const n = Math.max(1, Math.ceil(spans[i] / spacing));
@@ -34,6 +37,7 @@ function sample(path: DerivedPath, op: StrokeOperation) {
   const last = stations.length-1;
   const length = stations[last].distance;
   const loop = length > 0 && dist(stations[0],stations[last]) < 0.001;
+  const contact = Math.min(1, length / op.brushSize);
   for (const [i,p] of stations.entries()) {
     const prev = stations[i === 0 && loop ? last-1 : Math.max(0,i-1)];
     const next = stations[i === last && loop ? 1 : Math.min(last,i+1)];
@@ -42,7 +46,7 @@ function sample(path: DerivedPath, op: StrokeOperation) {
     p.ny = span > 0 ? (next.x-prev.x)/span : prev.ny;
     const u = length ? p.distance/length : 0;
     // Distance along the complete stroke controls lift-off, including during Replay.
-    const taper = loop ? 1 : Math.sqrt(Math.max(0, Math.min(1,
+    const taper = loop ? 1 : contact * Math.sqrt(Math.max(0, Math.min(1,
       p.distance/Math.max(1,Math.min(length*0.24,op.brushSize*3)),
       (length-p.distance)/Math.max(1,Math.min(length*0.34,op.brushSize*5)))));
     const nib = Math.abs(0.8*p.nx + 0.6*p.ny);
@@ -58,7 +62,7 @@ function offset(p: Station, k: number) {
   return xy(p.x+p.nx*p.radius*k,p.y+p.ny*p.radius*k);
 }
 
-function layers(points: Station[], pencil: boolean, seed: number): InkLayer[] {
+function layers(points: Station[], pencil: boolean, seed: number, stationCount: number): InkLayer[] {
   if (points.length < 2) return [];
   if (points.at(-1)!.distance === 0) {
     const {x,y,radius:r} = points[0];
@@ -79,16 +83,25 @@ function layers(points: Station[], pencil: boolean, seed: number): InkLayer[] {
   }
   const body = ribbon((_,i)=>0.72+0.28*grain(i,4),(_,i)=>-0.72-0.28*grain(i,5));
   const deposits: string[] = [];
-  for (let i=1; i<points.length; i++) {
-    for (let lane=0; lane<3; lane++) {
-      if (grain(i,lane+12) < 0.22) continue;
-      const k = (lane-1)*0.54;
-      const start = k+0.44*(grain(i-1,lane)-0.5);
-      const end = k+0.44*(grain(i,lane)-0.5);
-      const half = 0.10+0.17*grain(i,lane+6);
-      deposits.push("M"+offset(points[i-1],start-half)+"L"+offset(points[i],end-half)+
-        "L"+offset(points[i],end+half)+"L"+offset(points[i-1],start+half)+"Z");
-    }
+  // Budget only the grain; the silhouette follows every original station.
+  // Choose one candidate from each stratum of the FULL stroke so replay
+  // exposes exactly the same grains as the final image.
+  const cells = (stationCount-1)*3;
+  const budget = Math.min(192, cells);
+  for (let slot=0; slot<budget; slot++) {
+    const first = Math.floor(slot*cells/budget);
+    const endExclusive = Math.floor((slot+1)*cells/budget);
+    const cell = first + Math.floor(grain(slot,20)*(endExclusive-first));
+    const i = 1 + Math.floor(cell/3);
+    if (i >= points.length) break;
+    const lane = cell%3;
+    if (grain(i,lane+12) < 0.22) continue;
+    const k = (lane-1)*0.54;
+    const start = k+0.44*(grain(i-1,lane)-0.5);
+    const end = k+0.44*(grain(i,lane)-0.5);
+    const half = 0.10+0.17*grain(i,lane+6);
+    deposits.push("M"+offset(points[i-1],start-half)+"L"+offset(points[i],end-half)+
+      "L"+offset(points[i],end+half)+"L"+offset(points[i-1],start+half)+"Z");
   }
   return [{d:body,opacity:0.36},{d:deposits.join(""),opacity:0.53}];
 }
@@ -113,7 +126,7 @@ export function naturalInk(op: StrokeOperation, path: DerivedPath, progress: num
   }
   let seed = 0;
   for (const ch of op.semanticId) seed = Math.imul(31,seed)+ch.charCodeAt(0) | 0;
-  const result = layers(visible,op.tool === "soft_pencil",seed);
+  const result = layers(visible,op.tool === "soft_pencil",seed,stations.length);
   if (progress >= 1) entry.final = result;
   return result;
 }

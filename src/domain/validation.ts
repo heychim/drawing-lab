@@ -13,7 +13,6 @@ import {
   type EraseOperation,
   type Point,
   type StrokeTool,
-  type StrokeOperation,
   type ValidationResult,
 } from "./types.js";
 
@@ -172,10 +171,12 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
       return brushSize ? { type: "set_brush_size", brushSize } : null;
     }
     case "stroke": {
+      const isRegion = isPaintRegionTool(value.tool);
+      const baseKeys = ["type", "points", "tValues", "semanticId", "tool", "color", "brushSize"];
       requireExactKeys(
         value,
-        ["type", "points", "tValues", "semanticId", "tool", "color", "brushSize"],
-        ["type", "points", "tValues", "semanticId", "tool", "color", "brushSize"],
+        isRegion ? [...baseKeys, "smooth", "corners"] : baseKeys,
+        baseKeys,
         path,
         errors,
       );
@@ -188,7 +189,25 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
       if (!geometry || !color || !brushSize || !isStrokeTool(value.tool)) {
         return null;
       }
-      if (isPaintRegionTool(value.tool)) {
+      if (isRegion) {
+        if ("smooth" in value && typeof value.smooth !== "boolean") {
+          errors.push(`${path}.smooth must be boolean`);
+          return null;
+        }
+        if ("corners" in value && (value.smooth !== true || !Array.isArray(value.corners) ||
+            value.corners.length > geometry.points.length ||
+            !Array.from(value.corners).every(i => Number.isInteger(i) && i >= 0 && i < geometry.points.length) ||
+            new Set(value.corners).size !== value.corners.length)) {
+          errors.push(`${path}.corners requires smooth: true and unique zero-based vertex indices in range`);
+          return null;
+        }
+        if (value.smooth && geometry.points.some((p, i, pts) => {
+          const next = pts[(i + 1) % pts.length];
+          return p.x === next.x && p.y === next.y;
+        })) {
+          errors.push(`${path}.smooth boundary must omit repeated adjacent vertices and the closing copy of the first point`);
+          return null;
+        }
         const [a] = geometry.points;
         const b = geometry.points.find(p => p.x !== a.x || p.y !== a.y);
         if (!b || !geometry.points.some(p => (p.y - a.y) * (b.x - a.x) !== (p.x - a.x) * (b.y - a.y))) {
@@ -196,7 +215,11 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
           return null;
         }
       }
-      return { type: "stroke", ...geometry, tool: value.tool, color, brushSize } as StrokeOperation;
+      return {
+        type: "stroke", ...geometry, tool: value.tool, color, brushSize,
+        ...(typeof value.smooth === "boolean" && { smooth: value.smooth }),
+        ...(Array.isArray(value.corners) && { corners: [...value.corners] }),
+      };
     }
     case "erase": {
       requireExactKeys(

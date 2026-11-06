@@ -24,10 +24,23 @@ The application uses React and React DOM (MIT). Development uses Vite and
 and transitive packages are recorded in `package-lock.json`; their own license
 terms remain unchanged.
 
+## Drawing and agent design references
+
+These references informed Drawing Lab's independently written TypeScript
+implementation. Their source code, prompts and artwork are not bundled.
+
+| Reference | What we studied |
+| --- | --- |
+| [SketchAgent](https://github.com/yael-vinker/SketchAgent) | Sequential drawing, semantic stroke identifiers and fitting curves to an ordered set of points. |
+| [perfect-freehand](https://github.com/steveruizok/perfect-freehand) | How variable-width outlines and taper can express pressure along a stroke. |
+| [p5.brush](https://github.com/acamposuribe/p5.brush) | How grain, pigment buildup at the edges and translucent layers distinguish drawing materials. |
+| [Doodle Agent](https://github.com/YIFANK/DoodleAgent) and [tldraw Agent](https://github.com/tldraw/agent-template) | How a model can describe drawing actions that an application translates into editable marks. |
+
+The preview uses the [W3C SVG path commands](https://www.w3.org/TR/SVG2/paths.html)
+to describe the geometry shared with the Canvas renderer.
+
 ## Project-created material
 
 The pixel icon JSX, example DrawingDocuments, and the screenshot explicitly
 referenced by the public README were created for Drawing Lab and are covered by
-the project license. No SketchAgent source file or code dependency is bundled;
-its research ideas were reviewed historically, while the TypeScript renderer in
-this repository was independently implemented.
+the project license.

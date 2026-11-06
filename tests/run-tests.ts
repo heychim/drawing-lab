@@ -208,12 +208,48 @@ for (const tool of ["soft_pencil","ink_brush"] as const) {
   assert(renderPlanToSvg(final) === renderPlanToSvg(createFinalRenderPlan(JSON.parse(JSON.stringify(doc)))),"natural geometry survives reload deterministically");
   const dot = createRenderPlan(doc.canvas.background,state,{operation:{...op,points:[op.points[0],op.points[0]],tValues:[0,1]},progress:1});
   assert(!!dot.strokes[0].ink?.[0].d && !renderPlanToSvg(dot).includes("NaN"),"coincident points produce a finite dot");
+  const horizontal = (length:number, progress:number) => createRenderPlan(doc.canvas.background,state,{
+    operation:{...op, brushSize:12, points:[{x:10,y:10},{x:10+length,y:10}], tValues:[0,1]}, progress,
+  }).strokes[0].ink!;
+  if (tool === "ink_brush") {
+    let previous = 0;
+    for (let length=1; length<=8; length++) {
+      const vertices = (progress:number) => [...horizontal(length,progress)[0].d.matchAll(/([\d.]+) ([\d.]+)/g)];
+      const ys = vertices(1).map(match=>Number(match[2]));
+      const width = Math.max(...ys)-Math.min(...ys);
+      assert(width > previous && width-previous < 2, "1–8 px marks build pressure without a sampling threshold jump");
+      assert(Math.max(...vertices(0.5).map(match=>Number(match[1]))) === 10+length/2,
+        "short mark at half replay reaches only its actual midpoint");
+      previous = width;
+    }
+  } else {
+    const finalGrain = horizontal(880,1)[1].d;
+    const halfGrain = horizontal(880,0.5)[1].d;
+    assert(finalGrain.startsWith(halfGrain) && halfGrain.length > 0 && halfGrain !== finalGrain,
+      "completed grains keep their positions when replay reveals the second half");
+    assert(finalGrain.split("M").length-1 <= 192,"long soft-pencil marks have bounded deposit geometry");
+  }
 }
 const artBrushStroke = (tool: "graphite" | "watercolor" | "marker") =>
   artBrushPlanA.strokes.find((stroke) => stroke.tool === tool);
 assert(artBrushStroke("graphite")?.passes?.length === 3, "graphite derives three dry-texture render passes");
 assert(artBrushStroke("watercolor")?.passes?.length === 4, "watercolor derives four translucent wash passes");
 assert(artBrushStroke("marker")?.passes?.length === 3, "marker derives three squared color-band passes");
+{
+  const svg = renderPlanToSvg(artBrushPlanA);
+  for (const [index, stroke] of artBrushPlanA.strokes.entries()) {
+    if (!stroke.passes) continue;
+    assert(svg.split(`id="brush-${index}"`).length - 1 === 1 &&
+      svg.split(`href="#brush-${index}"`).length - 1 === stroke.passes.length,
+      `${stroke.tool} preview stores the curve once and draws every material pass`);
+  }
+  const tiny = { ...artBrushStroke("graphite")!, commands: [
+    { type: "move" as const, point: { x: 0, y: 0 } },
+    { type: "line" as const, point: { x: 1, y: 1 } },
+  ] };
+  assert(!renderPlanToSvg({ ...artBrushPlanA, strokes: [tiny] }).includes("<defs>"),
+    "tiny multipass marks stay inline when a reference would increase preview size");
+}
 assert(
   artBrushStroke("graphite")?.passes?.some((entry) => entry.lineDash.length > 0),
   "graphite render passes include deterministic broken grain",
@@ -436,6 +472,54 @@ Object.defineProperty(globalThis, "window", {
     assert(last?.status === "ready" && renderPlanToSvg(createRenderPlan(doc.canvas.background, last.engine)) === renderPlanToSvg(createFinalRenderPlan(branch.value)), "mixed-media Replay reaches the identical final paint plan: " + mode);
   }
   assert(JSON.stringify(doc) === snapshot, "preview, branch and playback leave the source canonical data unchanged");
+}
+{
+  const points = [{x:500,y:100}, {x:700,y:300}, {x:500,y:500}, {x:300,y:300}];
+  const fill = {type:"stroke" as const, tool:"gouache_fill" as const, color:"#6B4F4F", brushSize:3,
+    semanticId:"fruit", points, tValues:[0,.2,.7,1]};
+  const make = (options: Record<string, unknown>) => applyPayload({...validPayload, operations:[
+    {type:"select_tool", tool:fill.tool}, {...fill, ...options}, {type:"complete"},
+  ]});
+  const result = make({smooth:true});
+  assert(result.ok && validateStoredDocument(result.value).ok, "smooth fruit is accepted at both canonical boundaries");
+  const region = (options: Record<string, unknown>) => {
+    const made = make(options);
+    assert(made.ok, "valid contour fixture");
+    return createFinalRenderPlan(made.value).strokes[0].region!.paint;
+  };
+  const fruit = region({smooth:true}), polygon = region({});
+  const leaf = region({smooth:true, corners:[0,2]});
+  const cubics = (boundary: string) => [...boundary.matchAll(/C([^CLZ]+)/g)].map(m => m[1].trim().split(/\s+/).map(Number));
+  const smooth = cubics(fruit.boundary), sharp = cubics(leaf.boundary);
+  assert(smooth.length === 4 && smooth.every((c,i) => c[4] === points[(i+1)%4].x && c[5] === points[(i+1)%4].y),
+    "four anchors yield four cubic edges passing exactly through the input, including the seam");
+  assert(smooth[0][1] === 100 && smooth[3][3] === 100 && smooth[0][0] > 500 && smooth[3][2] < 500,
+    "incoming and outgoing handles share a tangent across the smooth closing seam");
+  assert(sharp[0][1] > 100 && sharp[3][3] > 100 && sharp[1][3] < 500 && sharp[2][1] < 500,
+    "both marked tips retain distinct one-sided tangents, including the first vertex");
+  assert(region({smooth:true,corners:[0,1,2,3]}).boundary === polygon.boundary &&
+    region({smooth:false}).boundary === polygon.boundary, "all-corner or disabled interpolation preserves the exact polygon");
+  assert(region({smooth:true,tValues:[0,.4,.8,1]}).boundary === fruit.boundary, "custom reveal timing leaves the silhouette intact");
+  const before = JSON.stringify(result.value);
+  const ready = createFinalRenderPlan(result.value);
+  const op = result.value.operations[1];
+  assert(op.type === "stroke" && op.points.length === points.length, "canonical history stores anchors without generated handles");
+  const prefix = deriveDocumentState({...result.value, operations:result.value.operations.slice(0,1)});
+  const transient = (progress:number) => createRenderPlan(ready.background, prefix, {operation:op, progress});
+  assert(transient(.2).strokes[0].region?.paint.boundary === fruit.boundary &&
+    renderPlanToSvg(transient(1)) === renderPlanToSvg(ready), "partial and complete Replay use the final curved boundary");
+  assert(JSON.stringify(result.value) === before && renderPlanToSvg(ready) ===
+    renderPlanToSvg(createFinalRenderPlan(JSON.parse(before))), "curved fill restores deterministically without editing history");
+  for (const options of [{smooth:"true"}, {corners:[0]}, {smooth:false,corners:[0]}, {smooth:true,corners:null},
+    ...[[-1],[4],[0.25],[0,0],["1"],Array(1)].map(corners => ({smooth:true,corners})),
+    {smooth:true,points:[points[0],points[0],points[1],points[2]]},
+    {smooth:true,points:[points[0],points[1],points[2],points[0]]}]) {
+    assert(!make(options).ok, "invalid region contour rejected before apply");
+  }
+  for (const tool of ["soft_pencil","eraser"]) {
+    const invalid = expandMcpSteps([{tool},{paths:[{id:"mark", xy:[[0,0],[12,10],[20,0]], smooth:true}]}]);
+    assert(invalid.ok && !applyPayload({...validPayload,operations:invalid.value}).ok, "contour options are rejected on line or erase inputs");
+  }
 }
 const artBrushFrames: PlaybackFrame[] = [];
 await playDocument(

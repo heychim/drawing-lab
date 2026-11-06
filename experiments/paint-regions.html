@@ -47,7 +47,8 @@ function scanlines(id,polygon,size) {
   return paths;
 }
 
-function scene(regions) {
+function scene(mode) {
+  const regions=mode!=='lines', sparse=mode==='angular'||mode==='smooth';
   const steps=[], state={};
   function draw(tool,color,brushSize,paths) {
     for(const [key,value] of Object.entries({tool,color,brushSize})) {
@@ -55,9 +56,14 @@ function scene(regions) {
     }
     steps.push({paths});
   }
-  function area(id,tool,color,xy,size=18) {
+  function area(id,tool,color,xy,size=18,corners) {
     const material=regions?tool:(tool==='wash_fill'?'watercolor':'brush');
-    draw(material,color,size,regions?[{id,xy}]:scanlines(id,xy,size));
+    const path={id,xy};
+    if(mode==='smooth' && corners!==undefined) {
+      path.smooth=true;
+      if(corners.length) path.corners=corners;
+    }
+    draw(material,color,size,regions?[path]:scanlines(id,xy,size));
   }
   function line(id,tool,color,size,xy) { draw(tool,color,size,[{id,xy}]); }
   area('morning-mist','wash_fill','#A3BEB4',rounded([[114,366],[173,210],[341,139],[564,142],
@@ -67,9 +73,10 @@ function scene(regions) {
   function leaf(id,from,to,width,color) {
     const dx=to[0]-from[0],dy=to[1]-from[1],len=Math.hypot(dx,dy);
     const xy=(t,n)=>[Math.round(from[0]+t*dx-n*dy/len),Math.round(from[1]+t*dy+n*dx/len)];
-    const edge=[[0,0],[.17,-.58],[.38,-.93],[.58,-.82],[.8,-.54],[1,0],
+    const edge=sparse ? [[0,0],[.38,-.93],[.72,-.68],[1,0],[.64,.62],[.28,.72]] :
+      [[0,0],[.17,-.58],[.38,-.93],[.58,-.82],[.8,-.54],[1,0],
       [.78,.27],[.64,.62],[.48,.83],[.28,.72],[.13,.41]];
-    area(id,'gouache_fill',color,edge.map(([t,w])=>xy(t,w*width)),12);
+    area(id,'gouache_fill',color,edge.map(([t,w])=>xy(t,w*width)),12,[0,3]);
     line(id+'-vein','soft_pencil','#C9BB85',4,[xy(.02,0),xy(.39,-.08*width),xy(.76,-.12*width),xy(.96,0)]);
     for(const t of [.28,.49,.66]) line(id+'-rib-'+Math.round(t*100),'soft_pencil','#BBAB7D',2,
       [xy(t,0),xy(t+.07,.23*width),xy(t+.13,.41*width)]);
@@ -81,11 +88,16 @@ function scene(regions) {
   line('small-twig','ink_brush','#71604D',15,[[735,172],[754,133],[784,109],[817,91]]);
   function fruit(id,x,y,scale,color) {
     const local=points=>points.map(([a,b])=>[Math.round(x+scale*a),Math.round(y+scale*b)]);
-    const fill=(name,tool,tint,points)=>area(id+name,tool,tint,local(rounded(points)));
+    function fill(name,tool,tint,points,sparseAnchors=points) {
+      const anchors=sparse ? sparseAnchors : points;
+      area(id+name,tool,tint,local(sparse?anchors:rounded(points)),18,[]);
+    }
     fill('-body','gouache_fill',color,[[-106,-72],[-70,-106],[-18,-113],[27,-106],[71,-105],
-      [112,-80],[130,-41],[130,15],[114,64],[81,97],[30,117],[-22,114],[-68,98],[-105,65],[-124,23],[-125,-30]]);
+      [112,-80],[130,-41],[130,15],[114,64],[81,97],[30,117],[-22,114],[-68,98],[-105,65],[-124,23],[-125,-30]],
+      [[-106,-72],[-18,-113],[71,-105],[130,-41],[114,64],[30,117],[-68,98],[-124,23]]);
     fill('-glaze','wash_fill','#A74835',[[123,-48],[125,11],[109,57],[77,91],[33,110],[-12,108],
-      [-51,94],[-68,77],[-41,82],[-6,83],[45,63],[90,17]]);
+      [-51,94],[-68,77],[-41,82],[-6,83],[45,63],[90,17]],
+      [[105,-29],[105,43],[66,85],[12,103],[-35,87],[7,79],[54,50],[89,12]]);
     fill('-light','wash_fill','#FFE2A0',[[-99,-49],[-82,-77],[-53,-84],[-62,-70],[-84,-47],[-94,-17]]);
     area(id+'-calyx','gouache_fill','#585E40',local([[-4,-110],[-38,-128],[-59,-127],[-44,-112],
       [-72,-101],[-86,-84],[-54,-92],[-28,-94],[-13,-86],[0,-67],[13,-91],[32,-94],[64,-84],
@@ -102,8 +114,12 @@ function scene(regions) {
   steps.push('complete'); return steps;
 }
 
-for(const regions of [false,true]) {
-  const steps=scene(regions), expanded=expandMcpSteps(steps);
+const contours=new URLSearchParams(location.search).has('contours');
+if(contours) document.querySelector('header p').textContent='Drawing Lab · identical anchors, pigments and linework';
+const labels={lines:'Brush strokes & watercolor',polygon:'Glazes & matte gouache',
+  angular:'Straight boundaries',smooth:'Curved fruit & pointed leaves'};
+for(const mode of (contours?['angular','smooth']:['lines','polygon'])) {
+  const steps=scene(mode), expanded=expandMcpSteps(steps);
   if(!expanded.ok) throw Error(expanded.errors.join());
   const result=applyPayload({schemaVersion:'0.1',documentAction:'new_drawing',title:'Persimmons',operations:expanded.value});
   if(!result.ok) throw Error(result.errors.join());
@@ -112,7 +128,8 @@ for(const regions of [false,true]) {
   const ctx=canvas.getContext('2d',{willReadFrequently:true}); paintRenderPlanToCanvas(ctx,plan);
   const strokes=plan.strokes.length, bytes=new TextEncoder().encode(JSON.stringify(steps)).length;
   const footer=document.createElement('footer');
-  footer.innerHTML='<h2>'+(regions?'Glazes & matte gouache':'Brush strokes & watercolor')+'</h2><output>'+strokes+' paint operations · '+bytes+' bytes of compact input</output>';
+  const detail=contours?'8 anchors per fruit · 6 per leaf':strokes+' paint operations · '+bytes+' bytes of compact input';
+  footer.innerHTML='<h2>'+labels[mode]+'</h2><output>'+detail+'</output>';
   section.append(canvas,footer); document.querySelector('main').append(section);
 
   const exported=await createImageBitmap(await createDrawingPng(result.value));

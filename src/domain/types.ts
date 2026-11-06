@@ -39,6 +39,8 @@ export type SetBrushSizeOperation = {
 
 export type StrokeOperation = {
   type: "stroke";
+  smooth?: boolean;
+  corners?: number[];
   points: Point[];
   tValues: number[];
   semanticId: string;

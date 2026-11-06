@@ -19,6 +19,49 @@ type RegionPaint = {
 export type PaintRegion = { paint: RegionPaint; revealRadius?: number };
 const cache = new WeakMap<StrokeOperation, RegionPaint>();
 
+function smoothBoundary(points: Point[], corners: readonly number[] = []) {
+  const sharp = new Set(corners);
+  const handles = points.map((p, i) => {
+    if (sharp.has(i)) return null;
+    const prev = points[(i + points.length - 1) % points.length];
+    const next = points[(i + 1) % points.length];
+    const incoming = Math.hypot(p.x - prev.x, p.y - prev.y);
+    const outgoing = Math.hypot(next.x - p.x, next.y - p.y);
+    const dx = (p.x - prev.x) / incoming + (next.x - p.x) / outgoing;
+    const dy = (p.y - prev.y) / incoming + (next.y - p.y) / outgoing;
+    const span = Math.hypot(dx, dy);
+    // Bisect the two chord directions. Use the shorter chord to keep nearby
+    // anchors from acquiring large handles from a distant neighbour.
+    if (span < 1e-8) return { x: 0, y: 0 };
+    const length = (2 / 3) * Math.min(incoming, outgoing) / (1 + span / 2);
+    return { x: dx / span * length, y: dy / span * length };
+  });
+  const origin = points[0];
+  let extent = 0;
+  function control(x: number, y: number) {
+    x = +x.toFixed(3);
+    y = +y.toFixed(3);
+    extent = Math.max(extent, Math.hypot(x - origin.x, y - origin.y));
+    return `${x} ${y}`;
+  }
+  const parts = [`M${origin.x} ${origin.y}`];
+  for (const [i, a] of points.entries()) {
+    const j = (i + 1) % points.length;
+    const b = points[j], from = handles[i], to = handles[j];
+    if (!from && !to) {
+      if (j !== 0) parts.push(`L${b.x} ${b.y}`);
+      continue;
+    }
+    // At a sharp anchor each side follows its own chord. At a smooth anchor
+    // the incoming and outgoing cubic derivatives agree, including at the seam.
+    const dx = (b.x - a.x) / 3, dy = (b.y - a.y) / 3;
+    const c1 = control(a.x + (from?.x ?? dx), a.y + (from?.y ?? dy));
+    const c2 = control(b.x - (to?.x ?? dx), b.y - (to?.y ?? dy));
+    parts.push(`C${c1} ${c2} ${b.x} ${b.y}`);
+  }
+  return { boundary: parts.join("") + "Z", extent };
+}
+
 function mixPigment(op: StrokeOperation, seed: number): RegionPaint {
   const wash = op.tool === "wash_fill";
   const origin = op.points[0];
@@ -31,6 +74,10 @@ function mixPigment(op: StrokeOperation, seed: number): RegionPaint {
     extent = Math.max(extent, Math.hypot(p.x - origin.x, p.y - origin.y));
   }
   const width = right - left, height = bottom - top;
+  const curve = op.smooth ? smoothBoundary(op.points, op.corners) : undefined;
+  // A cubic can extend beyond its anchors. Its control hull bounds both the
+  // painted rectangle and the radius needed for the last Replay frame.
+  if (curve) extent = Math.max(extent, curve.extent);
   function random() {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     return seed / 4294967296;
@@ -56,7 +103,7 @@ function mixPigment(op: StrokeOperation, seed: number): RegionPaint {
   }
   return {
     medium: wash ? "wash_fill" : "gouache_fill",
-    boundary: "M" + op.points.map(p => `${p.x} ${p.y}`).join("L") + "Z",
+    boundary: curve?.boundary ?? ("M" + op.points.map(p => `${p.x} ${p.y}`).join("L") + "Z"),
     field, marks: marks.join(""), origin, extent,
     markColor: wash ? op.color : "#FFFFFF",
     markAlpha: 0.065,

@@ -73,9 +73,20 @@ For example, these steps put a clay-colored roof over a blue wash:
 ]
 ```
 
-Use at least three non-collinear vertices, in boundary order. Edges are
-straight and the last joins the first automatically. Add vertices around
-curves and use the even-odd rule for crossing outlines. Each region is one
+Use at least three non-collinear vertices in boundary order. Edges are straight
+by default. On either fill tool, add `"smooth":true` to the path to draw curves
+through the same anchors. For a leaf, keep its base and tip sharp:
+
+```json
+{"id":"leaf","xy":[[150,260],[190,170],[290,145],[380,120],[310,220],[220,255]],"smooth":true,"corners":[0,3]}
+```
+
+Omit `corners` for a fully rounded fruit. Indices start at zero. A smooth path
+closes itself: use distinct consecutive anchors and omit the closing copy of
+the first one. In canonical `operations` put the same options on the fill
+`stroke`. Only the supplied anchors count toward the point budget. Timing
+changes the spread of the paint, independently of the boundary. Crossing
+outlines use the even-odd rule. Each region is one
 undo target. Draw transparent layers, opaque shapes and line tools in the
 order you want them to cover one another. Size controls the wash rim or the
 length of dry gouache marks; it does not expand the boundary. Replay spreads

@@ -164,5 +164,5 @@ Drawing Lab 原创代码、明确标注的原创文档、pixel icon JSX 与示�
 “Drawing Lab contributors”。
 
 第三方字体、JavaScript dependencies 和其他第三方材料不因本项目采用 MIT 而改变
-许可证。详情及字体完整 OFL 文本见
+许可证。第三方授权、字体许可全文的位置，以及笔刷和 AI 绘画输入的技术参考，见
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

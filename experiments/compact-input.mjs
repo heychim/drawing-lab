@@ -5,6 +5,7 @@ import { applyPayload } from '../.test-build/src/domain/validation.js';
 import { createDrawingBranch } from '../.test-build/src/domain/drawingBranch.js';
 import { deriveDocumentState } from '../.test-build/src/domain/engine.js';
 import { expandMcpSteps } from '../.test-build/src/domain/mcpCompactSteps.js';
+import { isPaintRegionTool } from '../.test-build/src/domain/types.js';
 import { createFinalRenderPlan } from '../.test-build/src/renderer/renderPlan.js';
 import { renderPlanToSvg } from '../.test-build/src/renderer/svgPreview.js';
 import { createDerivedPath, commandsAtProgress } from '../.test-build/src/renderer/curvePath.js';
@@ -30,6 +31,8 @@ function pack({operations, ...header}) {
       const xy = op.points.map(({x,y}) => [x,y]);
       const path = {id: op.semanticId, xy};
       if (!op.tValues.every((t,i) => t === i / (xy.length - 1))) path.t = op.tValues;
+      if (op.smooth !== undefined) path.smooth = op.smooth;
+      if (op.corners !== undefined) path.corners = op.corners;
       steps.at(-1).paths.push(path);
     }
   }
@@ -48,7 +51,8 @@ const rows = [];
 let uniformCount = 0, pathCount = 0;
 let tupleSavings = 0, groupingSavings = 0, uniformSavings = 0, alteredCurves = 0;
 function compare(file, source) {
-  const original = load(file);
+  const input = load(file);
+  const original = input.steps ? expand(input, source) : input;
   const expected = checked(applyPayload(original, source, options));
   const compact = pack(original);
   const tuplesOnly = {...original, operations:original.operations.map(op =>
@@ -72,6 +76,8 @@ function compare(file, source) {
     const other = original.operations[i];
     pathCount++;
     if (op.tValues.every((t,j) => t === j/(op.points.length-1))) uniformCount++;
+    // Filled regions use their own closed boundary, already compared in the final plan.
+    if (isPaintRegionTool(op.tool)) continue;
     const path = createDerivedPath(op.points, op.tValues);
     const reference = createDerivedPath(other.points, other.tValues);
     const uniformPath = createDerivedPath(op.points, uniform(op.points.length));
@@ -83,6 +89,7 @@ function compare(file, source) {
   return actual;
 }
 const cat = compare('drawings/codex/current.drawing.json');
+compare('drawings/codex/calico-nap.steps.json');
 compare('drawings/codex/sleeping-cat-continue-moon.drawing.json',cat);
 for (const file of ['drawings/codex/nature-scene','drawings/codex/doodle-note',
   'src/examples/simple-shapes','src/examples/doodle-lettering','src/examples/art-brushes']) compare(file+'.drawing.json');

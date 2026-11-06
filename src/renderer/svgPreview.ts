@@ -69,15 +69,27 @@ export function renderPlanToSvg(
       lineDash: [],
       lineDashOffset: 0,
     }];
-    return passes.map((renderPass) => {
+    let element = `<path d="${pathData(stroke.commands)}"`;
+    let geometry = "";
+    if (passes.length > 1) {
+      const id = `brush-${index}`;
+      const use = `<use href="#${id}"`;
+      const definition = `<defs>${element} id="${id}"/></defs>`;
+      // A short mark can cost fewer bytes inline than its definition and references.
+      if (definition.length + passes.length * use.length < passes.length * element.length) {
+        geometry = definition;
+        element = use;
+      }
+    }
+    return geometry + passes.map((renderPass) => {
       const transform = renderPass.offsetX === 0 && renderPass.offsetY === 0
         ? ""
         : ` transform="translate(${number(renderPass.offsetX)} ${number(renderPass.offsetY)})"`;
       const dash = renderPass.lineDash.length === 0
         ? ""
         : ` stroke-dasharray="${renderPass.lineDash.map(number).join(" ")}" stroke-dashoffset="${number(renderPass.lineDashOffset)}"`;
-      return `<path d="${pathData(stroke.commands)}" fill="none" stroke="${attribute(renderPass.strokeStyle)}" stroke-width="${number(renderPass.lineWidth)}" stroke-linecap="${renderPass.lineCap}" stroke-linejoin="${renderPass.lineJoin}" opacity="${number(renderPass.globalAlpha)}"${transform}${dash}/>`;
-    });
+      return `${element} fill="none" stroke="${attribute(renderPass.strokeStyle)}" stroke-width="${number(renderPass.lineWidth)}" stroke-linecap="${renderPass.lineCap}" stroke-linejoin="${renderPass.lineJoin}" opacity="${number(renderPass.globalAlpha)}"${transform}${dash}/>`;
+    }).join("");
   }).join("");
   return `<svg id="drawing-preview" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${plan.width} ${plan.height}"><rect width="${plan.width}" height="${plan.height}" fill="${attribute(plan.background)}"/>${patterns}${paths}</svg>`;
 }
