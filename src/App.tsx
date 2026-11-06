@@ -192,6 +192,7 @@ export default function App() {
   const [exportBusy, setExportBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const playbackController = useRef<AbortController | null>(null);
+  const pendingReplay = useRef<{ document: DrawingDocument; mode: "full" | "latest" } | null>(null);
   const fragmentRestoreAttempted = useRef(false);
   const toastTimer = useRef<number | null>(null);
 
@@ -218,12 +219,6 @@ export default function App() {
     }
   }, [library]);
 
-  useEffect(() => {
-    playbackController.current?.abort();
-    if (currentDocument) setFrame(finalFrame(currentDocument));
-    return () => playbackController.current?.abort();
-  }, [currentDocument?.id, currentDocument?.currentRevision]);
-
   const startPlayback = (mode: "latest" | "full", document = currentDocument) => {
     if (!document || document.operations.length === 0) return;
     if (mode === "latest" && !hasReplayableLatestRange(document)) {
@@ -240,6 +235,18 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    const request = pendingReplay.current;
+    pendingReplay.current = null;
+    if (request && request.document === currentDocument) {
+      // Start after React commits the document and cleans up the previous playback.
+      startPlayback(request.mode, request.document);
+    } else if (currentDocument) {
+      setFrame(finalFrame(currentDocument));
+    }
+    return () => playbackController.current?.abort();
+  }, [currentDocument]);
+
   const skipPlayback = () => {
     const controller = playbackController.current;
     if (!currentDocument || !controller) return;
@@ -249,11 +256,11 @@ export default function App() {
     showToast("已跳过动画");
   };
 
-  const addDocument = (document: DrawingDocument, replay = true) => {
+  const addDocument = (document: DrawingDocument, mode: "full" | "latest" | null = "full") => {
+    pendingReplay.current = mode ? { document, mode } : null;
     setLibrary((current) => upsertDrawingDocument(current, document));
     setErrors([]);
     setNotice("已验证并保存到本机");
-    if (replay) window.setTimeout(() => startPlayback("full", document), 0);
   };
 
   useEffect(() => {
@@ -314,12 +321,10 @@ export default function App() {
     }
     const parsed = JSON.parse(agentPayloadText) as { documentAction?: unknown };
     if (parsed.documentAction === "continue_current") {
-      setLibrary((current) => upsertDrawingDocument(current, result.value));
-      setErrors([]);
+      addDocument(result.value, "latest");
       setAgentErrors([]);
       setAgentStatus("已通过 canonical 边界应用，正在重播最新变化");
       setNotice("智能体续画已验证并保存到本机");
-      window.setTimeout(() => startPlayback("latest", result.value), 0);
       return;
     }
     setAgentErrors([]);
@@ -433,10 +438,8 @@ export default function App() {
       return;
     }
     if (codexDevInput.documentAction === "continue_current") {
-      setLibrary((current) => upsertDrawingDocument(current, result.value));
-      setErrors([]);
+      addDocument(result.value, "latest");
       setNotice("Codex 续画已验证并保存到本机");
-      window.setTimeout(() => startPlayback("latest", result.value), 0);
       return;
     }
     addDocument(result.value);
@@ -453,7 +456,7 @@ export default function App() {
       setErrors(result.errors);
       return;
     }
-    addDocument(result.value, false);
+    addDocument(result.value, null);
   };
 
   const selectDocument = (id: string) => {
