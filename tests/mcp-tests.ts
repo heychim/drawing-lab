@@ -257,6 +257,12 @@ export async function runMcpTests() {
   );
   const continueSchema = asObject(continueTool.inputSchema);
   const continueProperties = asObject(continueSchema.properties);
+  for (const schema of [inputSchema, continueSchema]) {
+    assert(asObject(asObject(schema.properties).steps).type === "array" &&
+      !((schema.required as string[]).includes("operations")) &&
+      JSON.stringify(schema.allOf).includes('{"oneOf":[{"required":["steps"]},{"required":["operations"]}]}'),
+      "tools/list advertises steps and operations as exclusive alternatives");
+  }
   assert(
     continueTool.name === MCP_CONTINUE_TOOL_NAME &&
       asObject(continueProperties.schemaVersion).type === "string" &&
@@ -325,6 +331,53 @@ export async function runMcpTests() {
     "create_drawing_result sends a small completed payload through encrypted relay",
   );
   const numericCreateEnvironment = createMemoryWorkerEnvironment();
+  const compactEnvironment = createMemoryWorkerEnvironment();
+  const compactWorker = createRelayWorker();
+  const callCompact = async (args: JsonObject, name = MCP_TOOL_NAME) =>
+    structuredResult(await (await compactWorker.fetch(request(callBody(args, 3, name)), compactEnvironment)).json());
+  const readCompact = async (url: unknown) => {
+    const location = parseRelayResultUrl(String(url));
+    if (!location) throw new Error("missing compact result");
+    const read = await compactWorker.fetch(new Request("https://drawing-lab.test/api/results/" + location.resultId), compactEnvironment);
+    const restored = await decryptRelayDrawingDocument(await read.json(), location.fragmentKey);
+    if (!restored.ok) throw new Error("could not restore compact result");
+    return restored.value;
+  };
+  const compactHeader = {schemaVersion:"0.1", documentAction:"new_drawing", title:"Compact fixture"};
+  const mark = {id:"horizon", xy:[[20,10],[35,50],[80,10]], t:[0,0.3,1]};
+  const compactCreated = await callCompact({...compactHeader, steps:[
+    {tool:"graphite"}, {color:"#53576A"}, {brushSize:12}, {paths:[mark]}, "complete",
+  ]});
+  const base = await readCompact(compactCreated.structured.resultUrl);
+  const baseMark = base.operations[3];
+  assert(baseMark.type === "stroke" && baseMark.semanticId === mark.id && baseMark.tValues[1] === 0.3,
+    "compact create publishes canonical stroke with exact custom curve parameters");
+  const branchHeader = {schemaVersion:"0.1", sourceResultUrl:compactCreated.structured.resultUrl, title:"New horizon"};
+  const compactBranch = await callCompact({...branchHeader, steps:[
+    {paths:[{id:"ridge",xy:mark.xy},mark]}, "undo", "redo", {tool:"eraser"}, {paths:[mark]}, "complete",
+  ]}, MCP_CONTINUE_TOOL_NAME);
+  const branchDoc = await readCompact(compactBranch.structured.resultUrl);
+  const firstNew = branchDoc.operations[branchDoc.latestPlaybackRange.from];
+  assert(firstNew.type === "stroke" && firstNew.tool === "graphite" && firstNew.color === "#53576A" &&
+    firstNew.brushSize === 12 && firstNew.tValues[1] === 0.5 &&
+    branchDoc.operations.slice(branchDoc.latestPlaybackRange.from).map(op=>op.type).join() === "stroke,stroke,undo,redo,select_tool,erase,complete",
+    "compact continuation inherits restored style, derives uniform progression and keeps pen lifts and history order");
+  assert(semanticJson(base) === semanticJson(await readCompact(compactCreated.structured.resultUrl)),
+    "compact branch leaves source Result intact");
+  for (const bad of [
+    {...compactHeader, steps:["complete"], operations:[]}, compactHeader,
+    {...compactHeader, steps:[{paths:[{...mark,t:null}]},"complete"]},
+    {...compactHeader, steps:[{paths:[{...mark, xy:[[12,30,99],[30,40]]}]},"complete"]},
+    {...compactHeader, steps:[{paths:[{...mark,id:"bad id"}]},"complete"]},
+    {...compactHeader, steps:[{paths:Array(1500).fill(mark)},"complete"]},
+  ]) {
+    const rejected = await callCompact(bad);
+    assert(rejected.result.isError === true && compactEnvironment.DB.rows.size === 2,
+      "ambiguous or invalid compact creation fails without storing a result");
+  }
+  const invalidBranch = await callCompact({...branchHeader, steps:[{paths:[{...mark,t:[0,1,0]}]},"complete"]}, MCP_CONTINUE_TOOL_NAME);
+  assert(invalidBranch.result.isError === true && compactEnvironment.DB.rows.size === 2,
+    "invalid compact continuation preserves source and publishes no result");
   const numericCreateResult = structuredResult(await (await createRelayWorker({
     now: () => Date.parse("2026-08-27T00:00:00.000Z"),
     resultIdFactory: () => "V".repeat(24),

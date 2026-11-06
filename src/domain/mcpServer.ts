@@ -1,4 +1,5 @@
 import agentPayloadSchema from "../../public/drawing-schema.json" with { type: "json" };
+import { compactStepsSchema, expandMcpSteps } from "./mcpCompactSteps.js";
 import { createDrawingBranch } from "./drawingBranch.js";
 import { getHostedHandoffEligibility } from "./hostedPolicy.js";
 import { encryptDrawingDocumentForRelay } from "./relayCrypto.js";
@@ -13,7 +14,7 @@ import {
   type LoadedSourceRelayResult,
 } from "./mcpSourceResult.js";
 import type { RelayWorkerEnvironment } from "./relayWorker.js";
-import type { DrawingDocument, DrawingOperation } from "./types.js";
+import type { DrawingDocument } from "./types.js";
 import { applyPayload, validatePayload, validateStoredDocument } from "./validation.js";
 
 export const MCP_ENDPOINT = "/mcp";
@@ -68,12 +69,19 @@ function normalizeMcpToolArguments(input: unknown): unknown {
   return { ...input, schemaVersion: "0.1" };
 }
 
+const drawingInputChoice = [{ required: ["steps"] }, { required: ["operations"] }];
+const compactGuidance = "Prefer steps to save tokens. Use exactly one of steps or operations. " +
+  "In steps set tool/color/brushSize once, then group independent strokes as {paths:[{id,xy:[[x,y],...]}]}. " +
+  "Optional t overrides uniform progression. Use eraser for erase paths and strings for undo, redo and final complete. ";
+
 const mcpInputSchema = (() => {
   const schema = structuredClone(agentPayloadSchema) as UnknownRecord;
   const properties = schema.properties as UnknownRecord;
-  schema.required = ["schemaVersion", "documentAction", "title", "operations"];
+  schema.required = ["schemaVersion", "documentAction", "title"];
+  schema.allOf = [...agentPayloadSchema.allOf, { oneOf: drawingInputChoice }];
   schema.properties = {
     ...properties,
+    steps: compactStepsSchema,
     schemaVersion: { type: "string", const: "0.1" },
     documentAction: {
       const: "new_drawing",
@@ -89,7 +97,8 @@ const mcpContinueInputSchema = (() => {
   return {
     type: "object",
     additionalProperties: false,
-    required: ["schemaVersion", "sourceResultUrl", "title", "operations"],
+    required: ["schemaVersion", "sourceResultUrl", "title"],
+    allOf: [{ oneOf: drawingInputChoice }],
     properties: {
       schemaVersion: { type: "string", const: "0.1" },
       sourceResultUrl: {
@@ -101,6 +110,7 @@ const mcpContinueInputSchema = (() => {
       },
       title: properties.title,
       operations: properties.operations,
+      steps: compactStepsSchema,
     },
     $defs: schema.$defs,
   };
@@ -168,6 +178,7 @@ export const CREATE_DRAWING_RESULT_TOOL = {
   title: "Create Drawing Result",
   description:
     "Create a completed 1000x750 Drawing Lab result from the existing AgentDrawingPayload 0.1 schema. " +
+    compactGuidance +
     "Choose real pencil, brush, graphite, watercolor, marker, or eraser operations with colors, brush sizes, points, tValues, and semanticId values. " +
     "If the user asks you to draw freely without choosing a subject, decide the subject, composition, tools, colors, brush sizes, stroke order, semanticIds, and completion yourself; do not ask for a theme unless necessary. " +
     "The final operation must be complete. The encrypted relay result is temporary and expires after 7 days. " +
@@ -191,6 +202,7 @@ export const CONTINUE_DRAWING_RESULT_TOOL = {
   title: "Continue Drawing Result",
   description:
     "Create a new Drawing Lab result based on an existing Drawing Lab Result URL. " +
+    compactGuidance + "Steps inherit the source's last tool, color and brushSize. " +
     "The source completed drawing remains immutable. Drawing Lab restores and strictly validates it, creates a new document ID, copies its real operations into a branch, removes only a terminal complete from the branch copy, then applies this tool's new operations through the existing validator. " +
     "Use real stroke, erase, undo, redo, tool, color, and brush-size operations; the final new operation must be complete. " +
     "The returned encrypted relay result expires after 7 days and includes one derived PNG preview when Browser Run Free is available. " +
@@ -412,7 +424,16 @@ async function createDrawingResult(
     return toolFailure(id, ["payload.title is required for an MCP drawing result"], modern);
   }
 
-  const applied = applyPayload(argumentsInput, undefined, {
+  let payload = argumentsInput;
+  if ("steps" in payload) {
+    const { steps, ...header } = payload;
+    if ("operations" in header) return toolFailure(id, ["supply exactly one of steps or operations"], modern);
+    if (!Array.isArray(steps) || steps.at(-1) !== "complete") return toolFailure(id, ["the final step must be complete"], modern);
+    const expanded = expandMcpSteps(steps);
+    if (!expanded.ok) return toolFailure(id, expanded.errors, modern);
+    payload = { ...header, operations: expanded.value };
+  }
+  const applied = applyPayload(payload, undefined, {
     id: options.documentIdFactory?.() ?? crypto.randomUUID(),
     now: options.now?.() ?? new Date().toISOString(),
   });
@@ -427,46 +448,40 @@ async function createDrawingResult(
   );
 }
 
-function validateContinueArguments(input: unknown) {
+function validateContinueHeader(input: unknown) {
   if (!isRecord(input)) {
     return { ok: false as const, errors: ["tool arguments must be an object"] };
   }
-  const allowed = ["schemaVersion", "sourceResultUrl", "title", "operations"];
+  const required = ["schemaVersion", "sourceResultUrl", "title"];
+  const allowed = [...required, "operations", "steps"];
   const errors: string[] = [];
   for (const key of Object.keys(input)) {
     if (!allowed.includes(key)) errors.push(`payload.${key} is not allowed`);
   }
-  for (const key of allowed) {
+  for (const key of required) {
     if (!(key in input)) errors.push(`payload.${key} is required`);
   }
   if (input.schemaVersion !== "0.1") errors.push("payload.schemaVersion must be 0.1");
+  if (("operations" in input) === ("steps" in input)) errors.push("supply exactly one of steps or operations");
+  if (typeof input.title !== "string" || !input.title.length || input.title.length > 80) errors.push("title must be 1 to 80 characters");
   if (typeof input.sourceResultUrl !== "string" || input.sourceResultUrl.length < 1) {
     errors.push("payload.sourceResultUrl must be a Drawing Lab Result URL");
   }
+  if (errors.length) return { ok: false as const, errors };
+  return { ok: true as const, value: { title: input.title as string, sourceResultUrl: input.sourceResultUrl as string } };
+}
+
+function validateDelta(operations: unknown) {
   const deltaValidation = validatePayload({
-    schemaVersion: input.schemaVersion,
+    schemaVersion: "0.1",
     documentAction: "new_drawing",
-    title: input.title,
-    operations: input.operations,
+    operations,
   });
-  if (!deltaValidation.ok) errors.push(...deltaValidation.errors);
-  if (
-    deltaValidation.ok &&
-    deltaValidation.value.operations.at(-1)?.type !== "complete"
-  ) {
-    errors.push("the final continuation operation must be complete");
+  if (!deltaValidation.ok) return deltaValidation;
+  if (deltaValidation.value.operations.at(-1)?.type !== "complete") {
+    return { ok: false as const, errors: ["the final continuation operation must be complete"] };
   }
-  if (errors.length > 0 || !deltaValidation.ok) {
-    return { ok: false as const, errors };
-  }
-  return {
-    ok: true as const,
-    value: {
-      sourceResultUrl: input.sourceResultUrl as string,
-      title: deltaValidation.value.title as string,
-      operations: deltaValidation.value.operations as DrawingOperation[],
-    },
-  };
+  return { ok: true as const, value: deltaValidation.value.operations };
 }
 
 async function continueDrawingResult(
@@ -479,8 +494,11 @@ async function continueDrawingResult(
   options: McpServerOptions,
   modern: boolean,
 ) {
-  const validated = validateContinueArguments(argumentsInput);
+  if (!isRecord(argumentsInput)) return toolFailure(id, ["tool arguments must be an object"], modern);
+  const validated = validateContinueHeader(argumentsInput);
   if (!validated.ok) return toolFailure(id, validated.errors, modern);
+  const legacy = "operations" in argumentsInput ? validateDelta(argumentsInput.operations) : null;
+  if (legacy && !legacy.ok) return toolFailure(id, legacy.errors, modern);
   const applicationUrl = new URL("/", request.url).toString();
   const source = await restoreMcpSourceResult(
     validated.value.sourceResultUrl,
@@ -489,9 +507,17 @@ async function continueDrawingResult(
   );
   if (!source.ok) return toolFailure(id, source.errors, modern);
 
+  let operations = legacy?.value;
+  if (!operations) {
+    const expanded = expandMcpSteps(argumentsInput.steps, source.value);
+    if (!expanded.ok) return toolFailure(id, expanded.errors, modern);
+    const delta = validateDelta(expanded.value);
+    if (!delta.ok) return toolFailure(id, delta.errors, modern);
+    operations = delta.value;
+  }
   const branched = createDrawingBranch(source.value, {
     title: validated.value.title,
-    operations: validated.value.operations,
+    operations,
   }, {
     id: options.documentIdFactory?.() ?? crypto.randomUUID(),
     now: options.now?.() ?? new Date().toISOString(),

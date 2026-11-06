@@ -27,6 +27,36 @@ The endpoint uses Streamable HTTP and exposes:
 Client support for Remote MCP, write tools, Markdown links, and MCP ImageContent
 varies. Do not assume every model plan or client version supports them.
 
+### Compact MCP input
+
+For either MCP tool, send exactly one of `steps` or `operations`. Prefer
+`steps` for new calls. The server expands them before canonical validation.
+
+```json
+{
+  "schemaVersion": "0.1",
+  "documentAction": "new_drawing",
+  "title": "Two hills",
+  "steps": [
+    {"tool":"watercolor"}, {"color":"#83BBD2"}, {"brushSize":24},
+    {"paths":[
+      {"id":"far-hill","xy":[[60,410],[265,230],[470,410]]},
+      {"id":"near-hill","xy":[[410,440],[610,310],[870,440]],"t":[0,0.4,1]}
+    ]},
+    "complete"
+  ]
+}
+```
+
+Each path is a separate pen lift and undo target. Coordinates are absolute.
+With omitted `t`, point i of N has progression i/(N−1). Supply exact `t`
+values to preserve a custom curve. For erasure, select `eraser` and supply
+paths. History steps are `"undo"`, `"redo"`, and final `"complete"`.
+New drawings start with pencil, #6B4F4F and size 3. For continuation, replace
+`documentAction` with `sourceResultUrl`; paths inherit the restored source's
+tool, color and size until a step changes them. Limits apply after expansion.
+The web Agent Mode accepts canonical `operations`.
+
 ## New drawing
 
 `create_drawing_result` uses the existing AgentDrawingPayload fields and
