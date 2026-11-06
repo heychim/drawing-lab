@@ -19,6 +19,7 @@ export const compactStepsSchema = array({ oneOf: [
       t: array({ type: "number", minimum: 0, maximum: 1 }, 2, maxPoints),
       smooth: ref("smooth"),
       corners: ref("corners"),
+      grain: ref("grain"),
     },
     if: { required: ["corners"] },
     then: { required: ["smooth"], properties: { smooth: { const: true } } },
@@ -61,7 +62,7 @@ export function expandMcpSteps(steps: unknown, source?: DrawingDocument): Valida
       if (operations.length + step.paths.length > DRAWING_LIMITS.operations) return invalid("expanded operation limit exceeded");
       for (const [j, path] of step.paths.entries()) {
         const location = at + `.paths[${j}]`;
-        if (!record(path) || !("id" in path) || Object.keys(path).some(k => !["id","xy","t","smooth","corners"].includes(k)) ||
+        if (!record(path) || !("id" in path) || Object.keys(path).some(k => !["id","xy","t","smooth","corners","grain"].includes(k)) ||
             !Array.isArray(path.xy) || path.xy.length < 2) return invalid(location + " requires id and xy with at least two points");
         pointCount += path.xy.length;
         if (pointCount > maxPoints) return invalid("expanded point limit exceeded");
@@ -75,6 +76,7 @@ export function expandMcpSteps(steps: unknown, source?: DrawingDocument): Valida
           tool, brushSize, semanticId: path.id, points,
           ...("smooth" in path && { smooth: path.smooth }),
           ...("corners" in path && { corners: path.corners }),
+          ...("grain" in path && { grain: path.grain }),
           tValues: "t" in path ? path.t : points.map((_, k) => k / (points.length - 1)) });
       }
     }

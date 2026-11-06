@@ -175,7 +175,7 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
       const baseKeys = ["type", "points", "tValues", "semanticId", "tool", "color", "brushSize"];
       requireExactKeys(
         value,
-        isRegion ? [...baseKeys, "smooth", "corners"] : baseKeys,
+        isRegion ? [...baseKeys, "smooth", "corners", "grain"] : baseKeys,
         baseKeys,
         path,
         errors,
@@ -190,6 +190,11 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
         return null;
       }
       if (isRegion) {
+        if ("grain" in value && (typeof value.grain !== "number" || !Number.isFinite(value.grain) ||
+            value.grain < 0 || value.grain > 1)) {
+          errors.push(`${path}.grain must be a finite number from 0 to 1`);
+          return null;
+        }
         if ("smooth" in value && typeof value.smooth !== "boolean") {
           errors.push(`${path}.smooth must be boolean`);
           return null;
@@ -219,6 +224,7 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
         type: "stroke", ...geometry, tool: value.tool, color, brushSize,
         ...(typeof value.smooth === "boolean" && { smooth: value.smooth }),
         ...(Array.isArray(value.corners) && { corners: [...value.corners] }),
+        ...(typeof value.grain === "number" && { grain: value.grain }),
       };
     }
     case "erase": {

@@ -10,7 +10,22 @@ bitmap 成品，而是生成严格的 DrawingDocument operations：选择工具�
 返回可点击 Result，并通过同一 DrawingDocument 派生的 PNG Preview 检查自己实际
 画出的成品。Drawing Lab 本身不内置模型，也不提供模型额度。
 
-![Drawing Lab mobile UI](artifacts/mobile-ux1-1/final-mobile-page.png)
+![《风中的来信》：一位女子低头看着手中的信，发带随风扬起](docs/artwork/wind-letter.png)
+
+《风中的来信》由 148 笔组成。脸颊用了低纸纹的薄色，发髻靠弧形墨线收束，外套则保留较粗的颗粒。上图是 Drawing Lab 从这幅作品的最终画布直接导出的 PNG。可以查看 AI 写下的[完整绘画指令](drawings/codex/wind-letter.steps.json)。
+
+## 这次绘画更新
+
+- **线条有了轻重。** 软铅笔（`soft_pencil`）留下断续的石墨颗粒，墨刷（`ink_brush`）沿笔画变宽、收尖。短笔触可以点出睫毛，长笔触可以带出头发和衣褶。石墨、水彩和马克笔也可在同一张画中混用。
+- **一圈轮廓就能铺色。** `wash_fill` 适合透出底色的罩染，`gouache_fill` 适合覆盖底色。轮廓可用 `smooth` 画出圆弧，用 `corners` 保留耳尖、衣领等转折。每块颜色都能单独回放和撤销。
+- **纸纹可以按物体选择。** 两种填色工具都接受可选的 `grain`（0–1）。它只调节细纸纹，省略时沿用原效果。下图左侧是原作，右侧减轻了猫身的纸纹，再沿肩背和尾巴补了 14 笔；书封沿用原来的粗纹。[原作指令](drawings/codex/calico-nap.steps.json) · [新版指令](drawings/codex/calico-coat.steps.json)
+
+![三花猫材质对照：左为原作，右为减轻猫身纸纹、补画定向毛流的新版](docs/artwork/calico-coat-comparison.png)
+
+- **AI 可以少写重复字段。** MCP 创建和续画都支持精简的 `steps`：同组笔画共用工具、颜色和粗细，用 `[x,y]` 指定路径。Drawing Lab 展开后逐笔严格校验。以新版三花为例，同一份输入从 22,624 字节降到 8,588 字节，展开后的绘画操作完全一致。这组数字测量的是 UTF-8 JSON 字节数。[输入示例与用法](docs/AGENT_GUIDE.md#compact-mcp-input)
+- **回放中途可以直接看成画。** 修复了笔画画到一半跳过时，旧动画帧可能盖回最终画面的问题。智能体上下文也只在打开面板且需要时计算。
+
+绘画技术参考了 [perfect-freehand](https://github.com/steveruizok/perfect-freehand) 的压力轮廓与收笔、[p5.brush](https://github.com/acamposuribe/p5.brush) 的颜料与纸纹，以及 [SketchAgent](https://github.com/yael-vinker/SketchAgent) 的逐笔表达。AI 指令转换参考了 [Doodle Agent](https://github.com/YIFANK/DoodleAgent) 和 [tldraw Agent](https://github.com/tldraw/agent-template)。绘画实现由本项目独立编写。[技术来源及第三方授权](THIRD_PARTY_NOTICES.md)
 
 ## 功能
 
@@ -24,6 +39,13 @@ bitmap 成品，而是生成严格的 DrawingDocument operations：选择工具�
 - 基于旧 Result 创建新 DrawingDocument 分支；源作品保持 immutable。
 - 可选 Cloudflare Browser Run 派生 512 × 384 PNG Preview；失败不影响 Result。
 - 小型网页分享可使用 self-contained Fragment；Hosted relay 使用加密临时结果。
+
+<details>
+<summary>查看手机界面</summary>
+
+![Drawing Lab 手机画板](artifacts/mobile-ux1-1/final-mobile-page.png)
+
+</details>
 
 当前网页 canvas 是 operations 的查看与回放界面，不提供手指或鼠标自由绘制输入。
 Agent Guide 中的 “Free Draw” 指 AI 自主决定题材并调用

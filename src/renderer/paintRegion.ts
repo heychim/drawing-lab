@@ -6,6 +6,7 @@ import { pigmentPattern, type Medium } from "./pigmentGrain.js";
 type PigmentField = { x: number; y: number; radius: number; stops: [number, number][] };
 type RegionPaint = {
   medium: Medium;
+  grain: number;
   boundary: string;
   field: PigmentField;
   marks: string;
@@ -103,6 +104,7 @@ function mixPigment(op: StrokeOperation, seed: number): RegionPaint {
   }
   return {
     medium: wash ? "wash_fill" : "gouache_fill",
+    grain: op.grain ?? 1,
     boundary: curve?.boundary ?? ("M" + op.points.map(p => `${p.x} ${p.y}`).join("L") + "Z"),
     field, marks: marks.join(""), origin, extent,
     markColor: wash ? op.color : "#FFFFFF",
@@ -148,8 +150,11 @@ export function paintRegionToCanvas(ctx: CanvasRenderingContext2D, region: Paint
   ctx.fillStyle = gradient;
   // Fill the clipped bounds once; tracing the boundary twice darkens its fringe.
   ctx.fillRect(p.origin.x - p.extent, p.origin.y - p.extent, 2 * p.extent, 2 * p.extent);
-  ctx.fillStyle = pigmentPattern(ctx, p.medium);
-  ctx.fillRect(p.origin.x - p.extent, p.origin.y - p.extent, 2 * p.extent, 2 * p.extent);
+  if (p.grain > 0) {
+    ctx.fillStyle = pigmentPattern(ctx, p.medium);
+    ctx.globalAlpha *= p.grain;
+    ctx.fillRect(p.origin.x - p.extent, p.origin.y - p.extent, 2 * p.extent, 2 * p.extent);
+  }
   ctx.fillStyle = p.markColor;
   ctx.globalAlpha = p.markAlpha;
   ctx.fill(paths.marks);

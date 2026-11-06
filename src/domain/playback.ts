@@ -90,6 +90,7 @@ export async function playDocument(
     const operation = document.operations[index];
     if (operation.type === "stroke" || operation.type === "erase") {
       await animateDrawable(operation, state, index, onFrame, signal);
+      if (signal.aborted) return;
     }
     state = applyOperation(state, operation, index, false);
     const actionPulse = operation.type === "undo" || operation.type === "redo"

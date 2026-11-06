@@ -369,6 +369,7 @@ export async function runMcpTests() {
     {...compactHeader, steps:[{paths:[{...mark,t:null}]},"complete"]},
     {...compactHeader, steps:[{paths:[{...mark, xy:[[12,30,99],[30,40]]}]},"complete"]},
     {...compactHeader, steps:[{paths:[{...mark,id:"bad id"}]},"complete"]},
+    {...compactHeader, steps:[{tool:"wash_fill"},{paths:[mark,{...mark,grain:"0.3"}]},"complete"]},
     {...compactHeader, steps:[{paths:Array(1500).fill(mark)},"complete"]},
   ]) {
     const rejected = await callCompact(bad);
@@ -378,15 +379,17 @@ export async function runMcpTests() {
   const invalidBranch = await callCompact({...branchHeader, steps:[{paths:[{...mark,t:[0,1,0]}]},"complete"]}, MCP_CONTINUE_TOOL_NAME);
   assert(invalidBranch.result.isError === true && compactEnvironment.DB.rows.size === 2,
     "invalid compact continuation preserves source and publishes no result");
-  const wash = await callCompact({ ...compactHeader, steps: [{tool:"wash_fill"}, {paths:[{...mark, smooth:true}]}, "complete"] });
+  const wash = await callCompact({ ...compactHeader, steps: [{tool:"wash_fill"}, {paths:[{...mark, smooth:true, grain:0.3}]}, "complete"] });
   const overlay = await callCompact({ schemaVersion:"0.1", title:"Painted ridge", sourceResultUrl:wash.structured.resultUrl,
-    steps:[{tool:"gouache_fill"}, {paths:[{...mark, smooth:true, corners:[1]}]}, "complete"] }, MCP_CONTINUE_TOOL_NAME);
+    steps:[{tool:"gouache_fill"}, {paths:[{...mark, smooth:true, corners:[1], grain:0}]}, "complete"] }, MCP_CONTINUE_TOOL_NAME);
   const mixedPaint = await readCompact(overlay.structured.resultUrl);
   assert(createFinalRenderPlan(mixedPaint).strokes.map(s => s.region?.paint.medium).join() === "wash_fill,gouache_fill",
     "MCP compact create and continue round-trip both region materials through the existing encrypted Result");
   const marks = mixedPaint.operations.filter(op => op.type === "stroke");
   assert(marks.length === 2 && marks.every(op => op.smooth && op.points.length === mark.xy.length) &&
     marks[0].corners === undefined && marks[1].corners?.join() === "1", "encrypted branch preserves sparse curves and corner indices");
+  assert(marks[0].grain === 0.3 && marks[1].grain === 0,
+    "compact create and continue preserve fractional and zero paper grain through encrypted restore");
   const beforeBadCorner = compactEnvironment.DB.rows.size;
   const badCorner = await callCompact({ ...compactHeader, steps:[{tool:"gouache_fill"},
     {paths:[{...mark, smooth:true, corners:[mark.xy.length]}]}, "complete"] });

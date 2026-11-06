@@ -41,6 +41,7 @@ export type StrokeOperation = {
   type: "stroke";
   smooth?: boolean;
   corners?: number[];
+  grain?: number;
   points: Point[];
   tValues: number[];
   semanticId: string;

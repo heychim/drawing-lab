@@ -73,6 +73,7 @@ const drawingInputChoice = [{ required: ["steps"] }, { required: ["operations"] 
 const compactGuidance = "Prefer steps to save tokens. Use exactly one of steps or operations. " +
   "In steps set tool/color/brushSize once, then group independent strokes as {paths:[{id,xy:[[x,y],...]}]}. " +
   "Fill areas with wash_fill (translucent) or gouache_fill (matte): 3+ boundary vertices in order, closed automatically. On a fill path use smooth:true for curved edges, optional corners:[0,3] for sharp vertex indices (zero-based); omit the closing copy of the first point. " +
+  "Optional fill-path grain (0–1; default 1) sets paper texture strength independently of color and coverage. " +
   "Optional t overrides uniform progression. Use eraser for erase paths and strings for undo, redo and final complete. ";
 
 const mcpInputSchema = (() => {

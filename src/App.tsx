@@ -546,6 +546,11 @@ export default function App() {
       .finally(() => setExportBusy(false));
   };
 
+  const agentContextText = useMemo(
+    () => agentModeOpen && currentDocument ? JSON.stringify(createAgentContext(currentDocument), null, 2) : "",
+    [agentModeOpen, currentDocument],
+  );
+
   if (!currentDocument) return null;
 
   const displayedOperation = frame.operationIndex + 1;
@@ -561,7 +566,6 @@ export default function App() {
       ? size
       : closest,
   );
-  const agentContext = createAgentContext(currentDocument);
 
   return (
     <main className="desktop-shell">
@@ -829,7 +833,7 @@ export default function App() {
               </section>
               <section className="agent-context-pane">
                 <h3>智能体上下文 Agent Context</h3>
-                <pre data-testid="agent-context">{JSON.stringify(agentContext, null, 2)}</pre>
+                <pre data-testid="agent-context">{agentContextText}</pre>
                 <p>
                   Core：2 MiB · Hosted：{HOSTED_HANDOFF_CANONICAL_BYTES / 1024 / 1024} MiB<br />
                   Fragment 临时阈值：{TEMPORARY_FRAGMENT_ELIGIBILITY_THRESHOLD_CHARS} chars<br />

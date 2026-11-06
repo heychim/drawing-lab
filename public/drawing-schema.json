@@ -27,6 +27,7 @@
     }
   ],
   "$defs": {
+    "grain": { "type": "number", "minimum": 0, "maximum": 1, "default": 1, "description": "Fill paths only: strength of the paper texture, independent of pigment opacity. 0 hides the paper grain." },
     "smooth": { "type": "boolean", "description": "Fill regions only: interpolate a closed curve through the vertices. Default false (polygon)." },
     "corners": { "type": "array", "uniqueItems": true, "maxItems": 60000, "items": { "type": "integer", "minimum": 0, "maximum": 59999 }, "description": "With smooth:true, keep these zero-based vertex indices sharp; each index must be within this path." },
     "tool": { "enum": ["pencil", "brush", "graphite", "watercolor", "marker", "soft_pencil", "ink_brush", "wash_fill", "gouache_fill", "eraser"] },
@@ -81,12 +82,13 @@
           "required": ["type", "points", "tValues", "semanticId", "tool", "color", "brushSize"],
           "if": { "properties": { "tool": { "enum": ["wash_fill", "gouache_fill"] } } },
           "then": { "properties": { "points": { "minItems": 3, "description": "Ordered boundary with at least three non-collinear vertices; closed automatically, even-odd fill. Smooth contours require distinct adjacent vertices including across the closing edge." }, "tValues": { "minItems": 3 } } },
-          "else": { "not": { "anyOf": [{ "required": ["smooth"] }, { "required": ["corners"] }] } },
+          "else": { "not": { "anyOf": [{ "required": ["smooth"] }, { "required": ["corners"] }, { "required": ["grain"] }] } },
           "allOf": [{ "if": { "required": ["corners"] }, "then": { "required": ["smooth"], "properties": { "smooth": { "const": true } } } }],
           "properties": {
             "type": { "const": "stroke" },
             "smooth": { "$ref": "#/$defs/smooth" },
             "corners": { "$ref": "#/$defs/corners" },
+            "grain": { "$ref": "#/$defs/grain" },
             "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
             "tValues": { "type": "array", "minItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
             "semanticId": { "$ref": "#/$defs/semanticId" },

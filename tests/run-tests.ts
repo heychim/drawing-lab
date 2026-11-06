@@ -488,6 +488,26 @@ Object.defineProperty(globalThis, "window", {
     return createFinalRenderPlan(made.value).strokes[0].region!.paint;
   };
   const fruit = region({smooth:true}), polygon = region({});
+  const grainFrame = (grain?: number) => {
+    const made = make(grain === undefined ? {} : { grain });
+    assert(made.ok && validateStoredDocument(made.value).ok, "grain survives canonical validation and restore");
+    return createFinalRenderPlan(made.value);
+  };
+  const oldFill = grainFrame(), muted = grainFrame(0.25), clean = grainFrame(0);
+  assert(renderPlanToSvg(oldFill) === renderPlanToSvg(grainFrame(1)), "omitted and full grain produce identical preview markup");
+  const pigment = (plan: typeof oldFill) => plan.strokes[0].region!.paint;
+  assert(JSON.stringify({...pigment(muted), grain:1}) === JSON.stringify(pigment(oldFill)) &&
+    JSON.stringify({...pigment(clean), grain:1}) === JSON.stringify(pigment(oldFill)),
+    "changing grain leaves the pigment field, contour, broad marks and rim identical");
+  assert(renderPlanToSvg(muted).includes('fill="url(#grain-gouache_fill)" opacity="0.25"') &&
+    !renderPlanToSvg(clean).includes('grain-gouache_fill'), "preview scales just the paper layer and skips the unused tile at zero");
+  for (const grain of [-0.01, 1.01, NaN, Infinity, false, "0.5", null]) {
+    assert(!make({grain}).ok, "invalid paper texture strength fails closed");
+  }
+  for (const tool of ["pencil","eraser"]) {
+    const steps = expandMcpSteps([{tool}, {paths:[{id:"mark", xy:[[20,80],[150,35]], grain:0.5}]}]);
+    assert(steps.ok && !applyPayload({...validPayload, operations:steps.value}).ok, "grain is scoped to fill paths only");
+  }
   const leaf = region({smooth:true, corners:[0,2]});
   const cubics = (boundary: string) => [...boundary.matchAll(/C([^CLZ]+)/g)].map(m => m[1].trim().split(/\s+/).map(Number));
   const smooth = cubics(fruit.boundary), sharp = cubics(leaf.boundary);
@@ -954,6 +974,30 @@ if (catContinuation.ok) {
     "Latest Replay skip reaches the same final EngineState as natural completion",
   );
   assert(JSON.stringify(catContinuation.value) === continuationSnapshot, "Latest Replay skip does not mutate canonical history");
+  // Skip between animation frames, after the first partial path is visible.
+  const originalRaf = window.requestAnimationFrame;
+  try {
+    window.requestAnimationFrame = callback => {
+      callback(performance.now() + 40);
+      return 1;
+    };
+    for (const mode of ["full", "latest"] as const) {
+      const controller = new AbortController();
+      const afterSkip: PlaybackFrame[] = [];
+      let skippedMidStroke = false;
+      await playDocument(catContinuation.value, mode, frame => {
+        if (controller.signal.aborted) afterSkip.push(frame);
+        else if (frame.transient && frame.transient.progress > 0 && frame.transient.progress < 1) {
+          skippedMidStroke = true;
+          controller.abort();
+        }
+      }, controller.signal);
+      assert(skippedMidStroke && afterSkip.length === 0,
+        mode + " Replay emits no stale frame after a mid-stroke skip");
+    }
+  } finally {
+    window.requestAnimationFrame = originalRaf;
+  }
 }
 
 function requireDocument(

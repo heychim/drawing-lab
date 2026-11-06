@@ -41,6 +41,7 @@ to describe the geometry shared with the Canvas renderer.
 
 ## Project-created material
 
-The pixel icon JSX, example DrawingDocuments, and the screenshot explicitly
-referenced by the public README were created for Drawing Lab and are covered by
-the project license.
+The pixel icon JSX, example drawing inputs, the README screenshot and the artwork
+in `docs/artwork/` were created for Drawing Lab and are covered by the project
+license. The portrait and both cat studies were drawn with the operations in
+`drawings/codex/`.

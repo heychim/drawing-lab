@@ -61,6 +61,15 @@ The web Agent Mode accepts canonical `operations`.
 
 Choose `wash_fill` for transparent glazes that show earlier colors, or
 `gouache_fill` for matte, nearly opaque coverage. Send the perimeter once.
+Both accept optional `grain` per path (0–1, default 1). It controls the fine
+paper texture independently of the paint's coverage and edge. For example,
+leave a linen book cover at its default and use `"grain":0.3` on a cat's coat.
+A few curved pencil or ink strokes can then follow the shoulder and turn with
+the tail. Set their paths yourself. Each new fill starts at full grain unless
+its own path specifies a value.
+
+Compare the [original calico](../drawings/codex/calico-nap.steps.json) and the
+[coat study](../drawings/codex/calico-coat.steps.json) for a worked example.
 For example, these steps put a clay-colored roof over a blue wash:
 
 ```json

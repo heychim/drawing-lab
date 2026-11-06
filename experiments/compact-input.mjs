@@ -33,6 +33,7 @@ function pack({operations, ...header}) {
       if (!op.tValues.every((t,i) => t === i / (xy.length - 1))) path.t = op.tValues;
       if (op.smooth !== undefined) path.smooth = op.smooth;
       if (op.corners !== undefined) path.corners = op.corners;
+      if (op.grain !== undefined) path.grain = op.grain;
       steps.at(-1).paths.push(path);
     }
   }
@@ -90,6 +91,7 @@ function compare(file, source) {
 }
 const cat = compare('drawings/codex/current.drawing.json');
 compare('drawings/codex/calico-nap.steps.json');
+compare('drawings/codex/calico-coat.steps.json');
 compare('drawings/codex/sleeping-cat-continue-moon.drawing.json',cat);
 for (const file of ['drawings/codex/nature-scene','drawings/codex/doodle-note',
   'src/examples/simple-shapes','src/examples/doodle-lettering','src/examples/art-brushes']) compare(file+'.drawing.json');

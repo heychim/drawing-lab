@@ -39,7 +39,9 @@ function regionSvg(region: PaintRegion, color: string, index: number) {
   const spread = partial ? `<clipPath id="${id}-spread"><circle cx="${p.origin.x}" cy="${p.origin.y}" r="${region.revealRadius}"/></clipPath>` : "";
   const rim = p.rimWidth ? `<use href="#${id}" fill="none" stroke="${color}" stroke-width="${p.rimWidth}" stroke-linejoin="round" opacity="${p.rimAlpha}"/>` : "";
   const rect = `<rect x="${p.origin.x - p.extent}" y="${p.origin.y - p.extent}" width="${2 * p.extent}" height="${2 * p.extent}"`;
-  const area = `<g clip-path="url(#${id}-clip)">${rect} fill="url(#${id}-field)"/>${rect} fill="url(#grain-${p.medium})"/><path d="${p.marks}" fill="${attribute(p.markColor)}" opacity="${p.markAlpha}"/>${rim}</g>`;
+  const grainOpacity = p.grain === 1 ? "" : ` opacity="${p.grain}"`;
+  const grain = p.grain > 0 ? `${rect} fill="url(#grain-${p.medium})"${grainOpacity}/>` : "";
+  const area = `<g clip-path="url(#${id}-clip)">${rect} fill="url(#${id}-field)"/>${grain}<path d="${p.marks}" fill="${attribute(p.markColor)}" opacity="${p.markAlpha}"/>${rim}</g>`;
   return `<defs><path id="${id}" d="${p.boundary}" clip-rule="evenodd"/><clipPath id="${id}-clip"><use href="#${id}" clip-rule="evenodd"/></clipPath><radialGradient id="${id}-field" gradientUnits="userSpaceOnUse" cx="${x}" cy="${y}" r="${radius}">${paintStops}</radialGradient>${spread}</defs>` +
     (partial ? `<g clip-path="url(#${id}-spread)">${area}</g>` : area);
 }
@@ -49,7 +51,7 @@ export function renderPlanToSvg(
   width = MCP_PREVIEW_WIDTH,
   height = MCP_PREVIEW_HEIGHT,
 ) {
-  const media = new Set(plan.strokes.flatMap(s => s.region ? [s.region.paint.medium] : []));
+  const media = new Set(plan.strokes.flatMap(s => s.region && s.region.paint.grain > 0 ? [s.region.paint.medium] : []));
   const patterns = [...media].map(medium => {
     const layers = pigmentGrain(medium).map(l => `<path d="${l.d}" fill="${l.color}" opacity="${l.alpha}"/>`).join("");
     return `<defs><pattern id="grain-${medium}" patternUnits="userSpaceOnUse" width="${GRAIN_TILE_SIZE}" height="${GRAIN_TILE_SIZE}">${layers}</pattern></defs>`;
