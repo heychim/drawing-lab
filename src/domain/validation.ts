@@ -7,8 +7,10 @@ import {
   type AgentDrawingPayload,
   type DrawingDocument,
   type DrawingOperation,
+  type DrawingTool,
   type EraseOperation,
   type Point,
+  type StrokeTool,
   type StrokeOperation,
   type ValidationResult,
 } from "./types.js";
@@ -25,7 +27,10 @@ const OPERATION_TYPES = new Set([
   "redo",
   "complete",
 ]);
-const TOOLS = new Set(["pencil", "brush", "eraser"]);
+const STROKE_TOOLS = ["pencil", "brush", "graphite", "watercolor", "marker"] as const;
+const TOOLS = new Set([...STROKE_TOOLS, "eraser"]);
+const isStrokeTool = (value: unknown): value is StrokeTool =>
+  typeof value === "string" && (STROKE_TOOLS as readonly string[]).includes(value);
 const HEX_COLOR = /^#[0-9A-F]{6}$/;
 const SEMANTIC_ID = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 
@@ -150,10 +155,10 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
     case "select_tool": {
       requireExactKeys(value, ["type", "tool"], ["type", "tool"], path, errors);
       if (typeof value.tool !== "string" || !TOOLS.has(value.tool)) {
-        errors.push(`${path}.tool must be pencil, brush, or eraser`);
+        errors.push(`${path}.tool must be pencil, brush, graphite, watercolor, marker, or eraser`);
         return null;
       }
-      return { type: "select_tool", tool: value.tool as "pencil" | "brush" | "eraser" };
+      return { type: "select_tool", tool: value.tool as DrawingTool };
     }
     case "set_color": {
       requireExactKeys(value, ["type", "color"], ["type", "color"], path, errors);
@@ -176,10 +181,10 @@ function readOperation(value: unknown, index: number, errors: string[]): Drawing
       const geometry = readPath(value, path, errors);
       const color = readColor(value.color, `${path}.color`, errors);
       const brushSize = readBrushSize(value.brushSize, `${path}.brushSize`, errors);
-      if (value.tool !== "pencil" && value.tool !== "brush") {
-        errors.push(`${path}.tool must be pencil or brush`);
+      if (!isStrokeTool(value.tool)) {
+        errors.push(`${path}.tool must be pencil, brush, graphite, watercolor, or marker`);
       }
-      if (!geometry || !color || !brushSize || (value.tool !== "pencil" && value.tool !== "brush")) {
+      if (!geometry || !color || !brushSize || !isStrokeTool(value.tool)) {
         return null;
       }
       return { type: "stroke", ...geometry, tool: value.tool, color, brushSize } as StrokeOperation;

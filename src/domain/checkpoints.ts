@@ -113,7 +113,7 @@ function hydrateCheckpoint(
   const snapshot = checkpoint.state;
   if (
     !snapshot ||
-    !["pencil", "brush", "eraser"].includes(snapshot.tool) ||
+    !["pencil", "brush", "graphite", "watercolor", "marker", "eraser"].includes(snapshot.tool) ||
     typeof snapshot.color !== "string" ||
     !Number.isInteger(snapshot.brushSize) ||
     typeof snapshot.completed !== "boolean" ||

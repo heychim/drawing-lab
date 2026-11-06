@@ -1,5 +1,5 @@
 import type { RenderCommand } from "./curvePath.js";
-import type { RenderPlan } from "./renderPlan.js";
+import type { RenderPlan, RenderPlanPass } from "./renderPlan.js";
 
 export const MCP_PREVIEW_WIDTH = 512;
 export const MCP_PREVIEW_HEIGHT = 384;
@@ -33,9 +33,28 @@ export function renderPlanToSvg(
   width = MCP_PREVIEW_WIDTH,
   height = MCP_PREVIEW_HEIGHT,
 ) {
-  const paths = plan.strokes.map((stroke) =>
-    `<path d="${pathData(stroke.commands)}" fill="none" stroke="${attribute(stroke.strokeStyle)}" stroke-width="${number(stroke.lineWidth)}" stroke-linecap="round" stroke-linejoin="round" opacity="${number(stroke.globalAlpha)}"/>`
-  ).join("");
+  const paths = plan.strokes.flatMap((stroke) => {
+    const passes: RenderPlanPass[] = stroke.passes ?? [{
+      strokeStyle: stroke.strokeStyle,
+      lineWidth: stroke.lineWidth,
+      globalAlpha: stroke.globalAlpha,
+      offsetX: 0,
+      offsetY: 0,
+      lineCap: "round",
+      lineJoin: "round",
+      lineDash: [],
+      lineDashOffset: 0,
+    }];
+    return passes.map((renderPass) => {
+      const transform = renderPass.offsetX === 0 && renderPass.offsetY === 0
+        ? ""
+        : ` transform="translate(${number(renderPass.offsetX)} ${number(renderPass.offsetY)})"`;
+      const dash = renderPass.lineDash.length === 0
+        ? ""
+        : ` stroke-dasharray="${renderPass.lineDash.map(number).join(" ")}" stroke-dashoffset="${number(renderPass.lineDashOffset)}"`;
+      return `<path d="${pathData(stroke.commands)}" fill="none" stroke="${attribute(renderPass.strokeStyle)}" stroke-width="${number(renderPass.lineWidth)}" stroke-linecap="${renderPass.lineCap}" stroke-linejoin="${renderPass.lineJoin}" opacity="${number(renderPass.globalAlpha)}"${transform}${dash}/>`;
+    });
+  }).join("");
   return `<svg id="drawing-preview" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${plan.width} ${plan.height}"><rect width="${plan.width}" height="${plan.height}" fill="${attribute(plan.background)}"/>${paths}</svg>`;
 }
 

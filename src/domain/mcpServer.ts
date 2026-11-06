@@ -168,7 +168,7 @@ export const CREATE_DRAWING_RESULT_TOOL = {
   title: "Create Drawing Result",
   description:
     "Create a completed 1000x750 Drawing Lab result from the existing AgentDrawingPayload 0.1 schema. " +
-    "Choose real pencil, brush, or eraser operations with colors, brush sizes, points, tValues, and semanticId values. " +
+    "Choose real pencil, brush, graphite, watercolor, marker, or eraser operations with colors, brush sizes, points, tValues, and semanticId values. " +
     "If the user asks you to draw freely without choosing a subject, decide the subject, composition, tools, colors, brush sizes, stroke order, semanticIds, and completion yourself; do not ask for a theme unless necessary. " +
     "The final operation must be complete. The encrypted relay result is temporary and expires after 7 days. " +
     "When Browser Run Free is available, the result also includes one derived 512x384 PNG preview for model inspection. " +

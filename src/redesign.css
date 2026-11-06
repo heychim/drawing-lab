@@ -978,8 +978,8 @@ summary:focus-visible {
     grid-template-columns: auto 250px auto;
     gap: 12px;
   }
-  .tool-tile { width: 88px; }
-  .tool-icon-wrap { width: 59px; height: 59px; }
+  .tool-tile { width: clamp(48px, 6vw, 70px); }
+  .tool-icon-wrap { width: 42px; height: 42px; }
   .playback-badge {
     grid-column: 1 / -1;
     min-height: 31px;

@@ -2,6 +2,9 @@ export type PixelIconName =
   | "app"
   | "pencil"
   | "brush"
+  | "graphite"
+  | "watercolor"
+  | "marker"
   | "eraser"
   | "undo"
   | "redo"
@@ -76,6 +79,49 @@ export function PixelIcon({ name, className = "" }: PixelIconProps) {
           <path fill="#E982A6" d="M3 18h3v-1h3v3H8v1H4v-1H3z" />
           <rect fill="#FFC7D7" x="4" y="18" width="2" height="1" />
           <rect fill="#FFF1B1" x="7" y="13" width="1" height="1" />
+        </svg>
+      );
+    case "graphite":
+      return (
+        <svg {...commonProps}>
+          <path fill="#66505C" d="M17 1h4v1h1v4h-2v2h-2v2h-2v2h-2v2h-2v2h-2v2H8v2H6v2H2v-4h1v-2h2v-2h2v-2h2v-2h2V8h2V6h2V4h2z" />
+          <path fill="#5D6170" d="M17 3h3v3h-2v2h-2v2h-2v2h-2v2h-2v2H8l-2-2 2-2h2v-2h2V8h2V6h2V4h1z" />
+          <path fill="#9398A8" d="M17 3h2v2h-2v2h-2v2h-2v2h-2v2H9l-1-1 2-2h2V8h2V6h2V4h1z" />
+          <path fill="#D8D9DF" d="M16 4h1v2h-2v2h-1V6z" />
+          <path fill="#D6B88B" d="M5 15h4v3H7v2H4v-3z" />
+          <rect fill="#F2D7AA" x="5" y="15" width="2" height="2" />
+          <rect fill="#454955" x="3" y="19" width="3" height="2" />
+          <rect fill="#B8BBCA" x="19" y="3" width="2" height="2" />
+          <rect fill="#6F7382" x="11" y="15" width="1" height="1" />
+        </svg>
+      );
+    case "watercolor":
+      return (
+        <svg {...commonProps}>
+          <path fill="#66505C" d="M16 1h5v1h1v5h-1v2h-2v2h-2v2h-2v3h-2v3h-2v2H8v2H3v-1H2v-5h1v-3h2v-2h5v1h2v-2h1V8h1V6h1V3h1z" />
+          <path fill="#BA7D5B" d="M18 2h3v4h-2v2h-2v2h-2v2h-2V9h1V6h2V4h2z" />
+          <path fill="#F0B776" d="M18 2h2v3h-2v2h-1V4h1z" />
+          <path fill="#D9D5DE" d="M12 10h3v4h-2v3H9v-4h2z" />
+          <rect fill="#A9B6C7" x="9" y="14" width="4" height="3" />
+          <path fill="#6CBEC7" d="M5 13h4v2h1v4H9v2H5v1H3v-5h1v-3h1z" />
+          <path fill="#A9E2DE" d="M5 13h3v2H6v3H4v-3h1z" />
+          <path fill="#8E80CC" d="M17 14h3v2h2v4h-1v2h-5v-2h-1v-3h1v-2h1z" />
+          <path fill="#C4BAEF" d="M18 15h1v2h1v2h-3v-2h1z" />
+          <rect fill="#EAFBFA" x="6" y="14" width="1" height="2" />
+        </svg>
+      );
+    case "marker":
+      return (
+        <svg {...commonProps}>
+          <path fill="#66505C" d="M8 2h9v1h2v2h1v11h-2v2h-2v3h-1v2H7v-1H5v-2H4V7h1V4h2V2z" />
+          <path fill="#F29CB7" d="M8 4h8v1h2v10h-2v2H8v-2H6V7h1V5h1z" />
+          <rect fill="#FFC7D6" x="8" y="5" width="3" height="10" />
+          <rect fill="#FFF0A7" x="7" y="8" width="11" height="4" />
+          <rect fill="#E2C663" x="7" y="11" width="11" height="2" />
+          <path fill="#9A8DCD" d="M8 17h8v3h-2v2H9v-2H7v-2h1z" />
+          <rect fill="#C9C0F0" x="9" y="18" width="5" height="2" />
+          <rect fill="#FFF0F5" x="9" y="4" width="3" height="1" />
+          <rect fill="#D27195" x="16" y="6" width="2" height="8" />
         </svg>
       );
     case "eraser":

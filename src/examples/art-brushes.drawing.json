@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.1",
+  "documentAction": "new_drawing",
+  "title": "三种艺术笔刷",
+  "operations": [
+    { "type": "select_tool", "tool": "graphite" },
+    { "type": "set_color", "color": "#53576A" },
+    { "type": "set_brush_size", "brushSize": 12 },
+    {
+      "type": "stroke",
+      "semanticId": "graphite-wave",
+      "tool": "graphite",
+      "color": "#53576A",
+      "brushSize": 12,
+      "points": [
+        { "x": 90, "y": 250 }, { "x": 150, "y": 190 }, { "x": 220, "y": 245 },
+        { "x": 285, "y": 180 }, { "x": 350, "y": 235 }
+      ],
+      "tValues": [0, 0.25, 0.5, 0.75, 1]
+    },
+    { "type": "select_tool", "tool": "watercolor" },
+    { "type": "set_color", "color": "#83BBD2" },
+    { "type": "set_brush_size", "brushSize": 34 },
+    {
+      "type": "stroke",
+      "semanticId": "watercolor-wave-blue",
+      "tool": "watercolor",
+      "color": "#83BBD2",
+      "brushSize": 34,
+      "points": [
+        { "x": 390, "y": 240 }, { "x": 455, "y": 175 }, { "x": 520, "y": 235 },
+        { "x": 585, "y": 170 }, { "x": 650, "y": 225 }
+      ],
+      "tValues": [0, 0.25, 0.5, 0.75, 1]
+    },
+    { "type": "set_color", "color": "#D989A3" },
+    {
+      "type": "stroke",
+      "semanticId": "watercolor-wave-pink",
+      "tool": "watercolor",
+      "color": "#D989A3",
+      "brushSize": 34,
+      "points": [
+        { "x": 405, "y": 260 }, { "x": 470, "y": 215 }, { "x": 530, "y": 270 },
+        { "x": 595, "y": 215 }, { "x": 665, "y": 255 }
+      ],
+      "tValues": [0, 0.25, 0.5, 0.75, 1]
+    },
+    { "type": "select_tool", "tool": "marker" },
+    { "type": "set_color", "color": "#F2BD4F" },
+    { "type": "set_brush_size", "brushSize": 28 },
+    {
+      "type": "stroke",
+      "semanticId": "marker-zigzag",
+      "tool": "marker",
+      "color": "#F2BD4F",
+      "brushSize": 28,
+      "points": [
+        { "x": 710, "y": 190 }, { "x": 770, "y": 255 }, { "x": 825, "y": 185 },
+        { "x": 880, "y": 250 }, { "x": 925, "y": 195 }
+      ],
+      "tValues": [0, 0.25, 0.5, 0.75, 1]
+    },
+    { "type": "complete" }
+  ]
+}

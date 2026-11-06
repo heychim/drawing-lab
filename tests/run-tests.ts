@@ -71,6 +71,8 @@ import {
 } from "../src/domain/types.js";
 import { applyPayload, validatePayload, validateStoredDocument } from "../src/domain/validation.js";
 import { commandsAtProgress, createDerivedPath } from "../src/renderer/curvePath.js";
+import { createFinalRenderPlan } from "../src/renderer/renderPlan.js";
+import { renderPlanToSvg } from "../src/renderer/svgPreview.js";
 import { createMemoryWorkerEnvironment } from "./relay-worker-mock.js";
 
 import { runMcpTests } from "./mcp-tests.js";
@@ -119,6 +121,134 @@ const created = applyPayload(validPayload, undefined, {
 assert(created.ok, "valid payload creates a document");
 assert(created.ok && created.value.canvas.width === 1000 && created.value.canvas.height === 750, "canonical canvas is 1000x750");
 assert(created.ok && !hasReplayableLatestRange(created.value), "a new drawing range starting at zero is not presented as Latest Replay");
+
+const artBrushPayload: AgentDrawingPayload = {
+  schemaVersion: "0.1",
+  documentAction: "new_drawing",
+  title: "Art brush fixture",
+  operations: [
+    { type: "select_tool", tool: "graphite" },
+    { type: "set_color", color: "#53576A" },
+    { type: "set_brush_size", brushSize: 10 },
+    {
+      type: "stroke",
+      semanticId: "graphite-test",
+      tool: "graphite",
+      color: "#53576A",
+      brushSize: 10,
+      points: [{ x: 80, y: 110 }, { x: 190, y: 150 }, { x: 290, y: 100 }],
+      tValues: [0, 0.5, 1],
+    },
+    { type: "select_tool", tool: "watercolor" },
+    { type: "set_color", color: "#83BBD2" },
+    { type: "set_brush_size", brushSize: 30 },
+    {
+      type: "stroke",
+      semanticId: "watercolor-test",
+      tool: "watercolor",
+      color: "#83BBD2",
+      brushSize: 30,
+      points: [{ x: 350, y: 120 }, { x: 460, y: 175 }, { x: 570, y: 115 }],
+      tValues: [0, 0.5, 1],
+    },
+    { type: "select_tool", tool: "marker" },
+    { type: "set_color", color: "#F2BD4F" },
+    { type: "set_brush_size", brushSize: 24 },
+    {
+      type: "stroke",
+      semanticId: "marker-test",
+      tool: "marker",
+      color: "#F2BD4F",
+      brushSize: 24,
+      points: [{ x: 630, y: 110 }, { x: 750, y: 165 }, { x: 870, y: 105 }],
+      tValues: [0, 0.5, 1],
+    },
+    { type: "select_tool", tool: "eraser" },
+    { type: "set_brush_size", brushSize: 12 },
+    {
+      type: "erase",
+      semanticId: "art-brush-erase",
+      tool: "eraser",
+      brushSize: 12,
+      points: [{ x: 450, y: 130 }, { x: 500, y: 155 }],
+      tValues: [0, 1],
+    },
+    { type: "undo" },
+    { type: "redo" },
+    { type: "complete" },
+  ],
+};
+const artBrushDocument = applyPayload(artBrushPayload, undefined, {
+  id: "art-brush-document",
+  now: "2026-09-16T00:00:00.000Z",
+});
+assert(artBrushDocument.ok, "graphite, watercolor, and marker pass strict canonical validation");
+if (!artBrushDocument.ok) throw new Error("FAIL: art brush fixture was rejected");
+const artBrushCanonicalBefore = JSON.stringify(artBrushDocument.value);
+const artBrushPlanA = createFinalRenderPlan(artBrushDocument.value);
+const artBrushPlanB = createFinalRenderPlan(artBrushDocument.value);
+const artBrushStroke = (tool: "graphite" | "watercolor" | "marker") =>
+  artBrushPlanA.strokes.find((stroke) => stroke.tool === tool);
+assert(artBrushStroke("graphite")?.passes?.length === 3, "graphite derives three dry-texture render passes");
+assert(artBrushStroke("watercolor")?.passes?.length === 4, "watercolor derives four translucent wash passes");
+assert(artBrushStroke("marker")?.passes?.length === 3, "marker derives three squared color-band passes");
+assert(
+  artBrushStroke("graphite")?.passes?.some((entry) => entry.lineDash.length > 0),
+  "graphite render passes include deterministic broken grain",
+);
+assert(
+  artBrushStroke("watercolor")?.passes?.every((entry) => entry.globalAlpha <= 0.2),
+  "watercolor is built from bounded translucent layers",
+);
+assert(
+  artBrushStroke("marker")?.passes?.every((entry) => entry.lineCap === "square"),
+  "marker uses a distinct squared nib profile",
+);
+assert(
+  JSON.stringify(artBrushPlanA) === JSON.stringify(artBrushPlanB) &&
+    renderPlanToSvg(artBrushPlanA) === renderPlanToSvg(artBrushPlanB),
+  "art-brush render plan and SVG preview are deterministic",
+);
+assert(
+  JSON.stringify(artBrushDocument.value) === artBrushCanonicalBefore,
+  "art-brush derivation never mutates canonical points or operations",
+);
+assert(
+  artBrushPlanA.strokes.at(-1)?.type === "erase" &&
+    artBrushPlanA.strokes.at(-1)?.strokeStyle === artBrushDocument.value.canvas.background,
+  "erase keeps the existing shared background-path semantics after art brushes",
+);
+assert(
+  created.ok && createFinalRenderPlan(created.value).strokes.every((stroke) => stroke.passes === undefined),
+  "legacy pencil and brush documents retain their original single-pass rendering",
+);
+expectRejected({
+  ...validPayload,
+  operations: [{ type: "select_tool", tool: "airbrush" }],
+}, "must be pencil, brush, graphite, watercolor, marker, or eraser");
+
+const checkpointBrushPayload: AgentDrawingPayload = {
+  schemaVersion: "0.1",
+  documentAction: "new_drawing",
+  title: "Art brush checkpoint",
+  operations: Array.from({ length: CHECKPOINT_INTERVAL }, (_, index) => ({
+    type: "select_tool" as const,
+    tool: (["graphite", "watercolor", "marker"] as const)[index % 3],
+  })),
+};
+const checkpointBrushDocument = applyPayload(checkpointBrushPayload, undefined, {
+  id: "art-brush-checkpoint",
+  now: "2026-09-16T00:00:00.000Z",
+});
+assert(checkpointBrushDocument.ok, "art-brush checkpoint fixture validates");
+if (!checkpointBrushDocument.ok) throw new Error("FAIL: art-brush checkpoint fixture was rejected");
+const artBrushCheckpoints = createRenderCheckpoints(checkpointBrushDocument.value);
+const artBrushRestored = restoreDocumentState(checkpointBrushDocument.value, artBrushCheckpoints);
+assert(
+  artBrushRestored.usedCheckpointRevision === CHECKPOINT_INTERVAL &&
+    artBrushRestored.state.tool === deriveDocumentState(checkpointBrushDocument.value).tool,
+  "checkpoint restore accepts and preserves the expanded DrawingTool state",
+);
 
 if (created.ok) {
   const canonicalBeforeRendering = JSON.stringify(created.value);
@@ -246,6 +376,24 @@ Object.defineProperty(globalThis, "window", {
     },
   },
 });
+
+const artBrushFrames: PlaybackFrame[] = [];
+await playDocument(
+  artBrushDocument.value,
+  "full",
+  (playbackFrame) => artBrushFrames.push(playbackFrame),
+  { aborted: false, addEventListener() {} } as unknown as AbortSignal,
+);
+assert(
+  ["graphite", "watercolor", "marker"].every((tool) =>
+    artBrushFrames.some((playbackFrame) => playbackFrame.engine.tool === tool)),
+  "Full Replay exposes each art-brush tool state in canonical operation order",
+);
+assert(
+  JSON.stringify(artBrushFrames.at(-1)?.engine) ===
+    JSON.stringify(deriveDocumentState(artBrushDocument.value)),
+  "art-brush Full Replay reaches the canonical final EngineState",
+);
 
 const replayStatePayload: AgentDrawingPayload = {
   schemaVersion: "0.1",

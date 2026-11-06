@@ -239,11 +239,20 @@ export async function runMcpTests() {
       "$defs" in inputSchema,
     "MCP create schema explicitly requires string schemaVersion 0.1 and reuses canonical operations",
   );
+  const schemaDefinitions = asObject(inputSchema.$defs);
+  const exposedTools = asObject(schemaDefinitions.tool).enum;
+  assert(
+    Array.isArray(exposedTools) &&
+      ["pencil", "brush", "graphite", "watercolor", "marker", "eraser"].every((name) =>
+        exposedTools.includes(name)),
+    "MCP tools/list publishes all legacy and art-brush canonical tools",
+  );
   assert(
     typeof tool.description === "string" &&
       tool.description.includes("expires after 7 days") &&
       tool.description.includes("not cloud sync") &&
-      tool.description.includes("保存到本地"),
+      tool.description.includes("保存到本地") &&
+      tool.description.includes("graphite, watercolor, marker"),
     "MCP tool description gives concise relay retention and local-save guidance to the assistant",
   );
   const continueSchema = asObject(continueTool.inputSchema);

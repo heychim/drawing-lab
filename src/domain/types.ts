@@ -8,7 +8,15 @@ export const DRAWING_LIMITS = {
   serializedBytes: 2 * 1024 * 1024,
 } as const;
 
-export type DrawingTool = "pencil" | "brush" | "eraser";
+export type DrawingTool =
+  | "pencil"
+  | "brush"
+  | "graphite"
+  | "watercolor"
+  | "marker"
+  | "eraser";
+
+export type StrokeTool = Exclude<DrawingTool, "eraser">;
 
 export type Point = {
   x: number;
@@ -35,7 +43,7 @@ export type StrokeOperation = {
   points: Point[];
   tValues: number[];
   semanticId: string;
-  tool: "pencil" | "brush";
+  tool: StrokeTool;
   color: string;
   brushSize: number;
 };

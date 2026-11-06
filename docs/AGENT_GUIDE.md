@@ -179,6 +179,11 @@ theme from the user.
   `^[a-z0-9][a-z0-9_-]{0,79}$`.
 - A stroke repeats its effective `tool`, `color`, and `brushSize`; they must
   match the preceding tool-state operations.
+- Drawing tools are `pencil`, `brush`, `graphite`, `watercolor`, and `marker`;
+  `eraser` is used only with `erase`. `graphite` adds a dry broken texture,
+  `watercolor` builds translucent overlapping washes, and `marker` produces a
+  broad squared color band. These are deterministic derived render effects;
+  canonical points remain unchanged.
 
 ## Limits and result lifecycle
 

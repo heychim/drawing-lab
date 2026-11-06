@@ -27,7 +27,7 @@
     }
   ],
   "$defs": {
-    "tool": { "enum": ["pencil", "brush", "eraser"] },
+    "tool": { "enum": ["pencil", "brush", "graphite", "watercolor", "marker", "eraser"] },
     "color": { "type": "string", "pattern": "^#[0-9A-F]{6}$" },
     "brushSize": { "type": "integer", "minimum": 1, "maximum": 64 },
     "semanticId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$" },
@@ -82,7 +82,7 @@
             "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
             "tValues": { "type": "array", "minItems": 2, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
             "semanticId": { "$ref": "#/$defs/semanticId" },
-            "tool": { "enum": ["pencil", "brush"] },
+            "tool": { "enum": ["pencil", "brush", "graphite", "watercolor", "marker"] },
             "color": { "$ref": "#/$defs/color" },
             "brushSize": { "$ref": "#/$defs/brushSize" }
           }

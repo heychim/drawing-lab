@@ -37,6 +37,7 @@ import type { DrawingDocument, DrawingTool } from "./domain/types.js";
 import { applyPayload } from "./domain/validation.js";
 import simpleShapes from "./examples/simple-shapes.drawing.json";
 import doodleLettering from "./examples/doodle-lettering.drawing.json";
+import artBrushes from "./examples/art-brushes.drawing.json";
 import codexDevInput from "../drawings/codex/current.drawing.json";
 import "./redesign.css";
 
@@ -47,6 +48,7 @@ const relayClient = new HttpRelayClient();
 const EXAMPLES = [
   { name: "小房子", payload: simpleShapes },
   { name: "花朵 + HI!", payload: doodleLettering },
+  { name: "艺术笔刷", payload: artBrushes },
 ] as const;
 
 const ONBOARDING_KEY = "drawing-lab:usage-guide-acknowledged";
@@ -80,6 +82,9 @@ const DEFAULT_AGENT_PAYLOAD = JSON.stringify({
 const TOOL_META: Record<DrawingTool, { icon: PixelIconName; label: string }> = {
   pencil: { icon: "pencil", label: "铅笔" },
   brush: { icon: "brush", label: "画笔" },
+  graphite: { icon: "graphite", label: "石墨" },
+  watercolor: { icon: "watercolor", label: "水彩" },
+  marker: { icon: "marker", label: "马克笔" },
   eraser: { icon: "eraser", label: "橡皮" },
 };
 
