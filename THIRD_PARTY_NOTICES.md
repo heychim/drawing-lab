@@ -44,5 +44,6 @@ to describe the geometry shared with the Canvas renderer.
 
 The pixel icon JSX, example drawing inputs, the README screenshot and the artwork
 in `docs/artwork/` were created for Drawing Lab and are covered by the project
-license. The portrait and both cat studies were drawn with the operations in
-`drawings/codex/`.
+license. The portrait, both cat studies and the dog example were drawn with the
+inputs in `drawings/codex/`. The dog PNG is an unchanged final Canvas export from
+one local MCP drawing call; its input is `drawings/codex/happy-dog.steps.json`.

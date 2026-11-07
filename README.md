@@ -14,7 +14,51 @@ bitmap 成品，而是生成严格的 DrawingDocument operations：选择工具�
 
 《风中的来信》由 148 笔组成。脸颊用了低纸纹的薄色，发髻靠弧形墨线收束，外套则保留较粗的颗粒。上图是 Drawing Lab 从这幅作品的最终画布直接导出的 PNG。可以查看 AI 写下的[完整绘画指令](drawings/codex/wind-letter.steps.json)。
 
-## 这次绘画更新
+## 最新更新：中线＋宽度
+
+AI 画尾巴、衣袖、丝带等细长形状时，现在可以只写**中线怎么弯、沿途有多宽**，
+不用分别描两侧轮廓。MCP 的创建和续画工具都支持这种可选输入：
+`spine: [[x, y, fullWidth], ...]`，再用 `caps` 指定两端是圆头还是平头。
+它用于 `wash_fill` / `gouache_fill`；原有 `xy` 轮廓与线条画法继续保留，并可在一幅画里混用。
+
+![《捡到宝啦》：小狗叼着骨头，尾巴上扬，旁边用动作线表示摇动](docs/artwork/happy-dog.png)
+
+《捡到宝啦》的[完整 MCP 输入](drawings/codex/happy-dog.steps.json)由 Codex 直接生成，
+没有先找参考图，通过一次本地 MCP 调用完成，看到预览后没有再改画稿。
+共有 **45 笔绘制／填色、83 条操作**，其中 7 笔使用中线输入；全部展开后是 396 个路径点。
+上图来自真实最终 Canvas 的 PNG 导出。相同输入随后通过了线上创建、结果恢复和自动
+Replay 验证，线上最终画布与本地首稿逐像素一致。它是一次开发验收样例，不代表其他
+模型在普通聊天里都能一次画到同样水平。
+
+具体改动：
+
+- **减少 AI 要填写的几何数据。** 接受 2–12 个中线站点及各处完整宽度；AI 仍自行决定
+  路径、宽窄、颜色、材质和覆盖顺序。系统不自动设计题材、阴影或衣褶。
+- **减少展开后的冗余点。** 保留影响颜料场的关键点，再以 0.25 个逻辑像素的容差简化
+  派生轮廓。猫尾巴、衣袖、丝带三组局部实验的目标轮廓从合计 571 点降到 319 点，
+  减少约 44%；三组目标形状的像素遮罩重合率均超过 99.8%，但并非逐像素完全相同。
+- **仍然是原来的作品格式。** 新写法只在 MCP 输入层展开成一个已有的填色 stroke，
+  然后走严格校验。生成的全部点和字节照常计入预算；不另存一套中线历史。
+- **保留已有表现。** 没有改变 Engine、曲线渲染、Replay、PNG 导出或 MCP Preview。
+  旧 `xy` 的坐标、`t`、圆滑／尖角和纸纹参数原样保留；撤销、重做和续画分支语义不变。
+
+三组局部形状的输入 UTF-8 JSON 字节数分别为 330→184、313→178、842→477，
+包含路径和颜色字段，约减少 43–44%。这是针对相同形状目标分别编写的两种输入，
+不是整幅作品的通用压缩率，**也不是实测模型 token 节省比例**。展开点数减少主要节省
+作品数据量，不会再减少 AI 已经输出的输入。
+
+限制也很明确：宽度上限为 240 个逻辑单位，展开后不能超出画布；急转弯、过宽的形状
+可能重叠，复杂不对称轮廓仍适合用 `xy`。这项能力让形状更容易表达，不保证模型自动
+获得更好的构图或解剖能力。用法和错误边界见
+[Agent Guide](docs/AGENT_GUIDE.md#centerline-and-width-for-elongated-fills)；MCP 客户端需要
+获取更新后的 `tools/list` 定义才能使用新字段。
+
+本次通过了 610 项自动断言、生产构建、MCP 创建／续画与线上浏览器验收。没有新增依赖。
+宽度控制与端部选择的概念参考了
+[Synfig Advanced Outline](https://wiki.synfig.org/Advanced_Outline_Layer)，轮廓展开及简化
+由本项目独立实现，没有复制上游代码。[来源与授权说明](THIRD_PARTY_NOTICES.md)
+
+## 已有绘画能力
 
 - **线条有了轻重。** 软铅笔（`soft_pencil`）留下断续的石墨颗粒，墨刷（`ink_brush`）沿笔画变宽、收尖。短笔触可以点出睫毛，长笔触可以带出头发和衣褶。石墨、水彩和马克笔也可在同一张画中混用。
 - **一圈轮廓就能铺色。** `wash_fill` 适合透出底色的罩染，`gouache_fill` 适合覆盖底色。轮廓可用 `smooth` 画出圆弧，用 `corners` 保留耳尖、衣领等转折。每块颜色都能单独回放和撤销。
@@ -73,8 +117,9 @@ npm run preview
 
 ## AI / Remote MCP
 
-公开协议说明见 [`docs/AGENT_GUIDE.md`](docs/AGENT_GUIDE.md)，机器可读 schema
-见 [`public/drawing-schema.json`](public/drawing-schema.json)。自托管 MCP endpoint：
+公开协议说明见 [`docs/AGENT_GUIDE.md`](docs/AGENT_GUIDE.md)，canonical schema
+见 [`public/drawing-schema.json`](public/drawing-schema.json)；精简 `steps` 与 `spine` 的
+机器可读输入定义由 MCP `tools/list` 提供。自托管 MCP endpoint：
 
 ```text
 https://YOUR_HOST/mcp
