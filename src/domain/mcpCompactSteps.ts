@@ -1,5 +1,6 @@
 import { createInitialEngineState, deriveDocumentState } from "./engine.js";
-import { CANVAS_WIDTH, CANVAS_HEIGHT, DRAWING_LIMITS, type DrawingDocument, type ValidationResult } from "./types.js";
+import { CENTERLINE_MAX_STATIONS, CENTERLINE_MAX_WIDTH, expandCenterlinePath } from "./centerlinePath.js";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, DRAWING_LIMITS, isPaintRegionTool, type DrawingDocument, type ValidationResult } from "./types.js";
 
 const singleField = (key: string, schema: object) => ({
   type: "object", additionalProperties: false, required: [key], properties: { [key]: schema },
@@ -10,7 +11,7 @@ const maxPoints = DRAWING_LIMITS.points;
 export const compactStepsSchema = array({ oneOf: [
   { type: "string", enum: ["undo", "redo", "complete"] },
   ...["tool", "color", "brushSize"].map(key => singleField(key, ref(key))),
-  singleField("paths", array({
+  singleField("paths", array({ oneOf: [{
     type: "object", additionalProperties: false, required: ["id", "xy"],
     properties: {
       id: ref("semanticId"),
@@ -23,7 +24,18 @@ export const compactStepsSchema = array({ oneOf: [
     },
     if: { required: ["corners"] },
     then: { required: ["smooth"], properties: { smooth: { const: true } } },
-  }, 1, DRAWING_LIMITS.operations)),
+  }, {
+    type: "object", additionalProperties: false, required: ["id", "spine", "caps"],
+    description: "Fill tools only: expand a centerline with full widths into one ordinary filled perimeter. Use xy instead for asymmetric outlines or custom t/smooth/corners.",
+    properties: {
+      id: ref("semanticId"),
+      spine: array({ type: "array", minItems: 3, maxItems: 3,
+        prefixItems: [CANVAS_WIDTH, CANVAS_HEIGHT, CENTERLINE_MAX_WIDTH].map(maximum =>
+          ({ type: "number", minimum: 0, maximum })) }, 2, CENTERLINE_MAX_STATIONS),
+      caps: array({ type: "string", enum: ["flat", "round"] }, 2, 2),
+      grain: ref("grain"),
+    },
+  }] }, 1, DRAWING_LIMITS.operations)),
 ] }, 1, DRAWING_LIMITS.operations);
 
 const record = (v: unknown): v is Record<string, unknown> =>
@@ -60,8 +72,16 @@ export function expandMcpSteps(steps: unknown, source?: DrawingDocument): Valida
     } else {
       if (!Array.isArray(step.paths) || !step.paths.length) return invalid(at + ".paths must be a nonempty array");
       if (operations.length + step.paths.length > DRAWING_LIMITS.operations) return invalid("expanded operation limit exceeded");
-      for (const [j, path] of step.paths.entries()) {
+      for (const [j, inputPath] of step.paths.entries()) {
         const location = at + `.paths[${j}]`;
+        let path = inputPath;
+        if (record(path) && "spine" in path) {
+          if (!("id" in path)) return invalid(location + " requires id");
+          if (!isPaintRegionTool(tool)) return invalid(location + ".spine requires wash_fill or gouache_fill");
+          const expanded = expandCenterlinePath(path);
+          if (!expanded.ok) return invalid(location + ": " + expanded.errors.join("; "));
+          path = { id: path.id, xy: expanded.value, ...("grain" in path && { grain: path.grain }) };
+        }
         if (!record(path) || !("id" in path) || Object.keys(path).some(k => !["id","xy","t","smooth","corners","grain"].includes(k)) ||
             !Array.isArray(path.xy) || path.xy.length < 2) return invalid(location + " requires id and xy with at least two points");
         pointCount += path.xy.length;

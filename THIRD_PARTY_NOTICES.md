@@ -33,6 +33,7 @@ implementation. Their source code, prompts and artwork are not bundled.
 | --- | --- |
 | [SketchAgent](https://github.com/yael-vinker/SketchAgent) | Sequential drawing, semantic stroke identifiers and fitting curves to an ordered set of points. |
 | [perfect-freehand](https://github.com/steveruizok/perfect-freehand) | How variable-width outlines and taper can express pressure along a stroke. |
+| [Synfig Advanced Outline](https://wiki.synfig.org/Advanced_Outline_Layer) | Centerline width controls and endpoint cap choices. The MCP input adapter uses independently written normal offsets and Douglas–Peucker boundary reduction; no Synfig implementation is copied. |
 | [p5.brush](https://github.com/acamposuribe/p5.brush) | How grain, pigment buildup at the edges and translucent layers distinguish drawing materials. |
 | [Doodle Agent](https://github.com/YIFANK/DoodleAgent) and [tldraw Agent](https://github.com/tldraw/agent-template) | How a model can describe drawing actions that an application translates into editable marks. |
 

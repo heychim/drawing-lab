@@ -76,6 +76,7 @@ import { renderPlanToSvg } from "../src/renderer/svgPreview.js";
 import { createMemoryWorkerEnvironment } from "./relay-worker-mock.js";
 
 import { runMcpTests } from "./mcp-tests.js";
+import { runCenterlineTests } from "./centerline-tests.js";
 import { expandMcpSteps } from "../src/domain/mcpCompactSteps.js";
 let passed = 0;
 
@@ -1864,5 +1865,6 @@ await restoreEncryptedRelayResult(
 );
 assert(JSON.stringify(relaySourceDocument) === failureSnapshot, "all relay failure paths leave the current canonical DrawingDocument unchanged");
 
+passed += await runCenterlineTests();
 passed += await runMcpTests();
 console.log(`PASS: ${passed} assertions`);

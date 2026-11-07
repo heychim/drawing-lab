@@ -4,7 +4,8 @@ Drawing Lab accepts provider-neutral drawing operations. It does not call a
 model API. An external Agent can use the web Agent Mode during development or
 the Remote MCP endpoint in an ordinary chat client.
 
-The public machine-readable input schema is `/drawing-schema.json`. Runtime
+The public canonical input schema is `/drawing-schema.json`; MCP `tools/list`
+also describes the compact `steps` adapter below. Runtime
 validation remains authoritative: payloads, restored Results, and continuation
 branches are strictly validated before they can become a canonical
 DrawingDocument.
@@ -56,6 +57,51 @@ New drawings start with pencil, #6B4F4F and size 3. For continuation, replace
 `documentAction` with `sourceResultUrl`; paths inherit the restored source's
 tool, color and size until a step changes them. Limits apply after expansion.
 The web Agent Mode accepts canonical `operations`.
+
+### Centerline and width for elongated fills
+
+With `wash_fill` or `gouache_fill`, a path can use `spine` instead of `xy`.
+This is useful for a tail, sleeve or ribbon: specify its direction and width
+instead of describing both sides independently. It is optional; use `xy` for
+asymmetric silhouettes or explicit boundary/corner control.
+
+```json
+[
+  {"tool":"gouache_fill"}, {"color":"#B9754C"}, {"brushSize":10},
+  {"paths":[{
+    "id":"tail",
+    "spine":[[606,522,80],[703,490,72],[779,402,62],[793,299,48],[742,246,34],[684,271,20],[678,317,4]],
+    "caps":["round","round"], "grain":0.3
+  }]},
+  "complete"
+]
+```
+
+- Each of 2–12 stations is `[x,y,fullWidth]` in canonical logical coordinates.
+  Width is 0–240, not a radius or pressure. Only endpoints may have zero width,
+  and at least one station must have positive width. Consecutive centers differ.
+- `caps` is required: `[start,end]`, each `round` or `flat`. A zero-width end
+  becomes a tip. Width describes the shape; brush size still controls the fill
+  material as with `xy`.
+- `grain` is optional. Do not combine `spine` with `xy`, `t`, `smooth` or
+  `corners`. Line tools and erasers still use `xy`.
+- The adapter uses the existing curve fit with uniform centerline progression,
+  interpolates widths, offsets the two sides and removes redundant boundary
+  points at a 0.25 logical-pixel tolerance. The full expanded boundary must fit
+  the canvas; it is rejected rather than clipped if it goes outside. Sharp
+  reversals with zero tangent are rejected. Tight bends/wide shapes may overlap:
+  split them into ordered paths or use an explicit `xy` outline for control.
+- Expansion produces **one existing canonical fill stroke**, with uniform
+  `tValues`. All generated points and bytes count toward the existing limits;
+  the small number of input stations does not bypass them. Canonical validation
+  still applies to the whole batch. A failure publishes no partial Result.
+- Undo, redo, branch continuation, fill Replay, PNG export and Preview use that
+  same expanded stroke. Replay keeps the existing paint-spread behavior; this
+  does not add a new centerline animation. No `spine` data is stored in a
+  DrawingDocument. Existing `xy` and `operations` inputs are unchanged.
+
+The Agent still chooses shape, width, color, material and paint order. The
+adapter does not choose subjects, folds, shading or artistic corrections.
 
 ### Paint a region with one path
 

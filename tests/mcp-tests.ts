@@ -1,4 +1,5 @@
 import { deriveDocumentState } from "../src/domain/engine.js";
+import { expandMcpSteps } from "../src/domain/mcpCompactSteps.js";
 import { createDrawingBranch } from "../src/domain/drawingBranch.js";
 import {
   buildFragmentResultUrl,
@@ -262,6 +263,14 @@ export async function runMcpTests() {
       !((schema.required as string[]).includes("operations")) &&
       JSON.stringify(schema.allOf).includes('{"oneOf":[{"required":["steps"]},{"required":["operations"]}]}'),
       "tools/list advertises steps and operations as exclusive alternatives");
+    const commands = asObject(asObject(asObject(schema.properties).steps).items).oneOf as JsonObject[];
+    const pathsCommand = commands.find(command => "paths" in asObject(command.properties ?? {}));
+    const alternatives = asObject(asObject(asObject(pathsCommand!.properties).paths).items).oneOf as JsonObject[];
+    const spineSchema = alternatives.find(alternative => asObject(alternative.properties).spine);
+    assert(alternatives.length === 2 && spineSchema?.additionalProperties === false &&
+      (spineSchema.required as string[]).join() === "id,spine,caps" &&
+      asObject(asObject(spineSchema.properties).spine).maxItems === 12,
+      "both MCP tools publish bounded spine paths as an exclusive alternative to legacy xy");
   }
   assert(
     continueTool.name === MCP_CONTINUE_TOOL_NAME &&
@@ -395,6 +404,48 @@ export async function runMcpTests() {
     {paths:[{...mark, smooth:true, corners:[mark.xy.length]}]}, "complete"] });
   assert(badCorner.result.isError === true && compactEnvironment.DB.rows.size === beforeBadCorner,
     "invalid compact corner cannot publish a result");
+
+  const spine = { id:"tail", spine:[[606,522,80],[703,490,72],[779,402,62],[793,299,48],[742,246,34],[684,271,20],[678,317,4]],
+    caps:["round","round"], grain:0.3 };
+  const spineSteps = [{tool:"gouache_fill"}, {color:"#B9754C"}, {brushSize:10}, {paths:[spine]}, "complete"];
+  const spineResult = await callCompact({ ...compactHeader, steps: spineSteps });
+  assert(spineResult.result.isError === false && spineResult.structured.transport === "encrypted_relay" &&
+    spineResult.contents.some(content => content.type === "image"), "centerline MCP create returns the existing encrypted Result and Preview content");
+  const spineDoc = await readCompact(spineResult.structured.resultUrl);
+  const expectedSpine = expandMcpSteps(spineSteps);
+  assert(expectedSpine.ok && semanticJson(expectedSpine.value) === semanticJson(spineDoc.operations) &&
+    validateStoredDocument(spineDoc).ok, "relay decrypt and strict restore recover exactly the expanded canonical operations");
+  assert(compactEnvironment.BROWSER.calls.at(-1)?.input.html === renderPlanToPreviewHtml(createFinalRenderPlan(spineDoc)) &&
+    spineResult.structured.previewSourceDocumentId === spineDoc.id &&
+    spineResult.structured.previewSourceRevision === spineDoc.currentRevision,
+    "Preview derives from the same restored document identity, revision and final paint plan");
+  const sourceBefore = semanticJson(spineDoc);
+  const spineHeader = {schemaVersion:"0.1", sourceResultUrl:spineResult.structured.resultUrl, title:"Tail branch"};
+  const spineBranch = await callCompact({...spineHeader,
+    steps:[{paths:[{...spine, id:"second-tail"}]}, "undo", "redo", "complete"]}, MCP_CONTINUE_TOOL_NAME);
+  const continuedSpine = await readCompact(spineBranch.structured.resultUrl);
+  const addedSpine = continuedSpine.operations[continuedSpine.latestPlaybackRange.from];
+  assert(continuedSpine.id !== spineDoc.id && continuedSpine.latestPlaybackRange.from === spineDoc.operations.length - 1 &&
+    addedSpine.type === "stroke" && addedSpine.tool === "gouache_fill" && addedSpine.color === "#B9754C" &&
+    addedSpine.brushSize === 10 && addedSpine.points.length === 107,
+    "MCP spine continuation inherits source style and preserves branch/Latest boundaries");
+  assert(sourceBefore === semanticJson(await readCompact(spineResult.structured.resultUrl)), "MCP centerline continuation leaves the source Result unchanged");
+  for (const name of [MCP_TOOL_NAME, MCP_CONTINUE_TOOL_NAME]) {
+    for (const bad of [{...spine, xy:mark.xy}, {...spine, caps:["bad","flat"]}, {...spine, grain:-1},
+      {...spine, spine:[[2,2,30],[220,100,20]]}]) {
+      const rows: number = compactEnvironment.DB.rows.size;
+      const previews: number = compactEnvironment.BROWSER.calls.length;
+      const rejected = await callCompact({ ...(name === MCP_TOOL_NAME ? compactHeader : spineHeader),
+        steps:[{tool:"gouache_fill"}, {paths:[spine,bad]}, "complete"] }, name);
+      assert(rejected.result.isError === true && compactEnvironment.DB.rows.size === rows && compactEnvironment.BROWSER.calls.length === previews,
+        "bad centerline rejects atomically before relay writes or Preview: " + name);
+    }
+  }
+  const beforeTooMany = compactEnvironment.DB.rows.size;
+  const tooManySpines = await callCompact({...compactHeader, steps:[{tool:"gouache_fill"},
+    {paths:Array.from({length:600}, (_, i) => ({...spine, id:`tail_${i}`}))}, "complete"]});
+  assert(tooManySpines.result.isError === true && compactEnvironment.DB.rows.size === beforeTooMany,
+    "MCP expanded point-budget rejection cannot publish a result");
   const numericCreateResult = structuredResult(await (await createRelayWorker({
     now: () => Date.parse("2026-08-27T00:00:00.000Z"),
     resultIdFactory: () => "V".repeat(24),
